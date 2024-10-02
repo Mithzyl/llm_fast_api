@@ -11,8 +11,8 @@ from utils.util import set_api_key_environ
 async def lifespan(app: FastAPI):
     print("Application Startup")
     try:
-        create_db_and_tables()
         set_api_key_environ("./key.json")
+        create_db_and_tables()
     except Exception as e:
         db_name = "test.db"
         print(e)
