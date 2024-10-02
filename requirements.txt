@@ -1,0 +1,17 @@
+uvicorn
+fastapi~=0.115.0
+pymysql
+sqlalchemy~=2.0.35
+alembic
+pyjwt # jwt
+apscheduler # cron scheduler
+passlib # bcrypt
+bcrypt # bcrypt
+jinja2 # template engine
+sqlmodel~=0.0.22
+PyYAML~=6.0.2
+pydantic~=2.9.2
+langchain~=0.3.1
+langchain-community
+openai
+starlette~=0.38.6
