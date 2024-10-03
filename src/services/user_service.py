@@ -1,4 +1,7 @@
-from sqlmodel import Session
+import uuid
+
+import bcrypt
+from sqlmodel import Session, desc
 
 from db.db import get_session
 from models.dto.messgage_dto import Message
@@ -25,4 +28,23 @@ def login(login_request, session):
     return Message(code="200", message="success")
 
 
-    return None
+
+def register(register_request, session):
+    # 1. generate uuid
+    # 2. encrypt password
+    new_id = session.query(User).order_by(desc(User.id)).first().id + 1
+    new_uuid = str(uuid.uuid4())
+    print(register_request)
+    role = 'user'
+    hash_password = bcrypt.hashpw(register_request.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    new_user = User(new_id, new_uuid, register_request.email, register_request.name, hash_password, role)
+
+    try:
+        session.add(new_user)
+        session.commit()
+        return Message(code="200", message="success")
+    except Exception as e:
+        session.rollback()
+        return Message(code="500", message=str(e))
+
+    # 3. TODO: Auto login after register
