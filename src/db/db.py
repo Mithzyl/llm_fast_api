@@ -1,8 +1,12 @@
 from sqlmodel import Session, SQLModel, create_engine
 from yaml import safe_load
+import os
 
+print(os.environ)
 # TODO: Replace hard coding with env variable
-sql_url = r"mysql+pymysql://root:huyuan1649@localhost:3306/llm_user?charset=utf8mb4"
+# sql_url = f"mysql+pymysql://{os.environ['database_url']}:{os.environ['database_port']}/{os.environ['database']}?charset=utf8mb4"
+
+sql_url = r"mysql+pymysql://mithzyl:8PjpYSJ3xdrzLJVo@sqlpub.com:3306/mithzyl_llm?charset=utf8mb4"
 engine = create_engine(sql_url)
 
 def create_db_and_tables() -> None:

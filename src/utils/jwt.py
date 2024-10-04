@@ -9,7 +9,7 @@ def encode_jwt(payload: dict) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def decode_jwt(token: str) -> str:
+def decode_jwt(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload

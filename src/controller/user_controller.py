@@ -4,7 +4,6 @@ from sqlalchemy.testing.pickleable import User
 from sqlmodel import Session
 from starlette.responses import JSONResponse
 
-from db.db import get_session
 from models.dao.user_dao import UserLogin, UserRegister
 from models.dto.messgage_dto import Message
 from services import user_service
