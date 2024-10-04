@@ -69,14 +69,11 @@ class UserService:
     def get_me(self, token):
         try:
             credential = token.credentials
-            print(credential)
             decode_payload = decode_jwt(credential)
-            print(decode_payload)
             email = decode_payload.get('email', None)
             if email is None:
                 return Message(code="500", message="no such user")
                 # TODO: redirect
-            print(email)
 
             user = self.session.query(User).filter(User.email == email).first()
             dto = UserDTO.from_orm(user)
