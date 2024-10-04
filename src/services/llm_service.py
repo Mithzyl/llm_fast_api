@@ -11,7 +11,6 @@ from utils.util import generate_md5_id
 
 
 def get_messages_by_session(chat_session: str, session: Session):
-    print(chat_session)
     try:
         messages = (
             session.query(llm_message).filter(llm_message.session_id == chat_session)

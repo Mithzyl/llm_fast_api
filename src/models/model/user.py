@@ -30,14 +30,3 @@ class User(SQLModel, table=True):
 
 
 
-
-
-class UserLogin(BaseModel):
-    email: str
-    password: str
-
-
-class UserRegister(BaseModel):
-    email: str
-    password: str
-    name: str

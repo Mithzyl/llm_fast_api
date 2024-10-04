@@ -35,5 +35,4 @@ async def get_all_sessions_by_user_id(user_id: str, session: Session = Depends(g
 #Create a new session of chat
 @router.post("/chat")
 async def create_chat(message: MessageDao, session: Session = Depends(get_session, use_cache=False)):
-    print(message)
     return llm_service.create_chat(message, session)
