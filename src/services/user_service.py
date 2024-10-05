@@ -4,9 +4,10 @@ from typing import List
 import jwt
 from fastapi import Depends
 from passlib.hash import bcrypt
-from sqlmodel import Session, desc
+from sqlmodel import Session, desc, select
 
 from db.db import get_session
+from models.dao.user_dao import UserRegister, UserLogin
 from models.dto.messgage_dto import Message
 from models.dto.user_dto import UserDTO
 from models.model.user import User
@@ -21,19 +22,20 @@ class UserService:
         self.session = session
 
     def get_users(self) -> List[User]:
-        return self.session.query(User).all()
+        return self.session.exec(select(User)).all()
 
     def get_user_by_id(self, id: int) -> User:
-        return self.session.query(User).filter(User.id == id).first()
+        return self.session.exec(select(User).where(User.id == id)).first()
 
-    def login(self, login_request: dict) -> Message:
+    def login(self, login_request: UserLogin) -> Message:
         # query user, not exist return error
-        user = self.session.query(User).filter(User.email == login_request.email).first()
+        user = self.session.exec(select(User).where(User.email == login_request.email)).first()
+        print(user)
         if not user:
             return Message(code="500", message="no such user")
 
         try:
-            password = login_request.get(["password"])
+            password = login_request.password
             # TODO: Save token to redis
             access_token = authenticate_user(user, password)
 
@@ -42,26 +44,36 @@ class UserService:
         except Exception as e:
             return Message(code="200", message=e)
 
-    def register(self, register_request: dict) -> Message:
-        # 1. generate uuid
-        # 2. encrypt password
-        new_id = self.session.query(User).order_by(desc(User.id)).first().id + 1
-        new_uuid = str(uuid.uuid4())
-        print(register_request)
-        role = 'user'
-        hash_password = bcrypt.hash(register_request.password)
-        new_user = User(new_id, new_uuid, register_request.email, register_request.name, hash_password, role)
+    def register(self, register_request: UserRegister) -> Message:
+        password = register_request.password
+        name = register_request.name
+        if password == '':
+            return Message(code="200", message="password can not be empty")
 
-        try:
-            self.session.add(new_user)
-            self.session.commit()
+        email = register_request.email
+        exist_user = self.session.exec(select(User).where(User.email == email)).first()
+        if not exist_user:
+            # 1. generate uuid
+            # 2. encrypt password
+            new_id = self.session.exec(select(User).order_by(desc(User.id))).first().id + 1
+            new_uuid = str(uuid.uuid4())
+            print(register_request)
+            role = 'user'
+            hash_password = bcrypt.hash(password)
+            new_user = User(new_id, new_uuid, email, name, hash_password, role)
 
-        except Exception as e:
-            self.session.rollback()
+            try:
+                self.session.add(new_user)
+                self.session.commit()
 
-            return Message(code="500", message=str(e))
+            except Exception as e:
+                self.session.rollback()
 
-        return Message(code="200", message="success")
+                return Message(code="500", message=str(e))
+
+            return Message(code="200", message="success")
+        else:
+            return Message(code="200", message="user already exist")
 
         # 3. TODO: Auto login after register
 
@@ -70,8 +82,8 @@ class UserService:
             decode_payload = decode_token(token)
             email = decode_payload.get('email', None)
 
-            user = self.session.query(User).filter(User.email == email).first()
-            dto = UserDTO.from_orm(user)
+            user = self.session.exec(User.where(User.email == email)).first()
+            dto = UserDTO.model_validate(user)
             # TODO: redirect
 
             return Message(code="200", message=dto)
