@@ -39,6 +39,6 @@ async def get_all_sessions_by_user_id(user_id: str, llm_service: LlmService = De
 @router.post("/chat")
 async def create_chat(token: HTTPAuthorizationCredentials = Depends(security),
                       llm_service: LlmService = Depends(get_llm_service),
-                      message: MessageDao = Depends(MessageDao)):
-    print(token)
+                      message: MessageDao = Body()):
+
     return llm_service.create_chat(message, token)
