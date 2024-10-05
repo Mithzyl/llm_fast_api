@@ -89,5 +89,6 @@ class LlmService:
 
         return Message(code="200", message=chat)
 
+
 def get_llm_service(session: Session = Depends(get_session)) -> LlmService:
     return LlmService(session)

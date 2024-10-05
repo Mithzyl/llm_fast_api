@@ -5,6 +5,12 @@ import time
 from pathlib import Path
 import random
 
+import yaml
+
+
+def read_yaml_config(yaml_file: str) -> dict:
+    with open(yaml_file, 'r') as f:
+        return yaml.safe_load(f)
 
 def set_api_key_environ(api_key_path: str) -> None:
     """
@@ -15,7 +21,7 @@ def set_api_key_environ(api_key_path: str) -> None:
 
     for key, value in keys.items():
         os.environ[key] = value
-        # print(os.environ[key])
+        print(os.environ[key])
 
 
 def generate_md5_id() -> str:

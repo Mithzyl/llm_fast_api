@@ -1,1 +1,5 @@
-sqlite_url = "sqlite:///db.db"
+database_config:
+  sqlite_url: "sqlite:///db.db"
+  mysql_url: "mithzyl:8PjpYSJ3xdrzLJVo@sqlpub.com"
+  port: 3306
+  database_name: "mithzyl_llm"
