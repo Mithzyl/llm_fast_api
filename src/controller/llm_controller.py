@@ -29,6 +29,10 @@ async def demo_conversation(message_id: int, llm_service: LlmService = Depends(g
 async def get_chat_history(chat_session: str, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_messages_by_session(chat_session)
 
+@router.post("/{chat_session}/chat", response_model=Message)
+async def get_chat_history(chat_session: str, llm_service: LlmService = Depends(get_llm_service)):
+    return llm_service.get_messages_by_session(chat_session)
+
 
 @router.get("/{user_id}/sessions", response_model=Message)
 async def get_all_sessions_by_user_id(user_id: str, llm_service: LlmService = Depends(get_llm_service)):
