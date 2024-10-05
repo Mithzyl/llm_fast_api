@@ -6,6 +6,7 @@ from sqlmodel import SQLModel, Field
 
 class llm_message(SQLModel, table=True):
     id: int = Field(primary_key=True)
+    message_id: str = Field()
     session_id: str = Field()
     user_id: str = Field()
     message: str = Field()
