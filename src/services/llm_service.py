@@ -1,14 +1,18 @@
 from datetime import datetime
 
 from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials
 from langchain_community.chat_models import ChatOpenAI
-from sqlmodel import Session, desc
+from sqlmodel import Session, desc, select
 
 from db.db import get_session
 from llm.llm import create_first_chat
+from models.dao.message_dao import MessageDao
 from models.dto.messgage_dto import Message
 from models.dto.session_dto import ChatSession
 from models.model.llm_message import llm_message, llm_session
+from models.model.user import User
+from utils.authenticate import decode_token
 from utils.util import generate_md5_id
 
 
@@ -16,10 +20,10 @@ class LlmService:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_messages_by_session(self, chat_session: str, session: Session):
+    def get_messages_by_session(self, chat_session: str):
         try:
             messages = (
-                session.query(llm_message).filter(llm_message.session_id == chat_session)
+                self.session.query(llm_message).filter(llm_message.session_id == chat_session)
                 .order_by(desc(llm_message.create_time)).all()
             )
         except Exception as e:
@@ -50,7 +54,7 @@ class LlmService:
         return Message(code="200", message=session_dto)
 
 
-    def create_chat(self, message):
+    def create_chat(self, message: MessageDao, token: HTTPAuthorizationCredentials):
         # 1. generate a session_id
         # 2. Add initial system message of llm
         # 3. create langchain prompt template
@@ -58,9 +62,26 @@ class LlmService:
         # 5. save message and the session
 
         try:
+            # get current user TODO: get token from redis
+            payload = decode_token(token)
+            email = payload.get("email")
+            user = self.session.exec(select(User).where(User.email == email)).first()
             create_time = datetime.now()
+
             session_id = generate_md5_id()
             chat = create_first_chat(message.get_message())
+            update_time = datetime.now()
+            title = chat[:10]  #
+
+            session = llm_session(session_id=session_id, title=title, user_id=user.id, create_time=create_time, update_time=update_time)
+
+            try:
+                self.session.add(session)
+                self.session.commit()
+                self.session.refresh(session)
+            except Exception as e:
+                raise Exception(e)
+
             # TODO: handle regex to restructure output
 
         except Exception as e:

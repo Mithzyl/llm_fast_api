@@ -1,7 +1,9 @@
 from fastapi import FastAPI, APIRouter, Depends, Body, Path
+from fastapi.openapi.models import HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import Session
 
-
+from controller.user_controller import security
 from models.dao.message_dao import MessageDao
 from models.dto.messgage_dto import Message
 from services import llm_service
@@ -35,5 +37,8 @@ async def get_all_sessions_by_user_id(user_id: str, llm_service: LlmService = De
 
 #Create a new session of chat
 @router.post("/chat")
-async def create_chat(message: MessageDao, llm_service: LlmService = Depends(get_llm_service)):
-    return llm_service.create_chat(message)
+async def create_chat(token: HTTPAuthorizationCredentials = Depends(security),
+                      llm_service: LlmService = Depends(get_llm_service),
+                      message: MessageDao = Depends(MessageDao)):
+    print(token)
+    return llm_service.create_chat(message, token)

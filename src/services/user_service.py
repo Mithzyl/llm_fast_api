@@ -65,6 +65,7 @@ class UserService:
             try:
                 self.session.add(new_user)
                 self.session.commit()
+                self.session.refresh(new_user)
 
             except Exception as e:
                 self.session.rollback()

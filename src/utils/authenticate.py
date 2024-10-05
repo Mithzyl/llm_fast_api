@@ -8,8 +8,8 @@ from starlette import status
 from utils.jwt import encode_jwt, decode_jwt
 
 
-def authenticate_user(user, hashed_password) -> str:
-    password = user.password
+def authenticate_user(user, password) -> str:
+    hashed_password = user.password
     if bcrypt.verify(password, hashed_password):
         # generate jwt
         token_payload = {
