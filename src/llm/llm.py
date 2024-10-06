@@ -46,9 +46,6 @@ class LlmApi:
             raise e
 
     def chat(self, message_history: list, new_message: str, model: Optional[str] = None) -> Dict[str, str]:
-        print(message_history)
-        print(new_message)
-
         model = self.model or model
         llm = ChatOpenAI(model=model, temperature=self.temperature)
 
@@ -84,17 +81,6 @@ class LlmApi:
                 return response
         except Exception as e:
             raise e
-
-        # response = {'message_id': message_id,
-        #             'message': ai_msg,
-        #             'role': 'assistant',
-        #             'prompt_token': cb.prompt_tokens,
-        #             'completion_token': cb.completion_tokens,
-        #             'total_token': cb.total_tokens,
-        #             'cost': cb.total_cost,
-        #             'create_time': time
-        #             }
-
 
 
 def get_llm_api(model: str = 'gpt-4o-mini-2024-07-18', temperature: float = 0.9) -> LlmApi:
