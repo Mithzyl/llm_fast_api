@@ -169,20 +169,21 @@ class LlmService:
                 # dialog session
                 last_conversation_id = self.session.exec(select(llm_session).order_by(desc(llm_session.id))).first().id
                 conversation_primary_id = last_conversation_id + 1
-                dialog = llm_session(
+                conversation = llm_session(
                     id=conversation_primary_id,
                     session_id=conversation_id,
                     title=title,
                     user_id=user.userid,
                     create_time=create_time,
-                    update_time=update_time)
+                    update_time=update_time,
+                    model=chat.get('model'))
 
                 # cost
                 message_cost = self.cal_cost(chat, user.userid)
 
                 self.add_chat_session(user_message)
                 self.add_chat_session(ai_message)
-                self.add_chat_session(dialog)
+                self.add_chat_session(conversation)
                 self.add_chat_session(message_cost)
 
             # TODO: handle regex to restructure output

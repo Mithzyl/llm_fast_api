@@ -38,7 +38,8 @@ class LlmApi:
                             'completion_token': cb.completion_tokens,
                             'total_token': cb.total_tokens,
                             'cost': cb.total_cost,
-                            'create_time': time
+                            'create_time': time,
+                            'model': model
                             }
                 return response
         except Exception as e:
@@ -77,7 +78,8 @@ class LlmApi:
                             'completion_token': cb.completion_tokens,
                             'total_token': cb.total_tokens,
                             'cost': cb.total_cost,
-                            'create_time': time
+                            'create_time': time,
+                            'model': model
                             }
                 return response
         except Exception as e:
@@ -95,5 +97,5 @@ class LlmApi:
 
 
 
-def get_llm_api(model: str = 'gpt-4o-mini', temperature: float = 0.9) -> LlmApi:
+def get_llm_api(model: str = 'gpt-4o-mini-2024-07-18', temperature: float = 0.9) -> LlmApi:
     return LlmApi(model=model, temperature=temperature)
