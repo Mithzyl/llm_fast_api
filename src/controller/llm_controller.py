@@ -5,7 +5,7 @@ from sqlmodel import Session
 
 from controller.user_controller import security
 from models.dao.message_dao import MessageDao
-from models.dto.messgage_dto import Message
+from models.dto.messgage_dto import Response
 from services import llm_service
 from services.llm_service import LlmService, get_llm_service
 
@@ -20,21 +20,21 @@ router = APIRouter(
 #     return llm_service.get_response()
 
 
-@router.get("/conversation/{message_id}", response_model=Message)
+@router.get("/conversation/{message_id}", response_model=Response)
 async def demo_conversation(message_id: int, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_message_by_message_id(message_id)
 
 
-@router.get("/{chat_session}", response_model=Message)
+@router.get("/{conversation_id}", response_model=Response)
+async def get_conversation_history(conversation_id: str, llm_service: LlmService = Depends(get_llm_service)):
+    return llm_service.get_messages_by_conversation_id(conversation_id)
+
+@router.post("/{chat_session}/chat", response_model=Response)
 async def get_chat_history(chat_session: str, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_messages_by_session(chat_session)
 
-@router.post("/{chat_session}/chat", response_model=Message)
-async def get_chat_history(chat_session: str, llm_service: LlmService = Depends(get_llm_service)):
-    return llm_service.get_messages_by_session(chat_session)
 
-
-@router.get("/{user_id}/sessions", response_model=Message)
+@router.get("/{user_id}/sessions", response_model=Response)
 async def get_all_sessions_by_user_id(user_id: str, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_sessions_by_user_id(user_id)
 

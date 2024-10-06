@@ -8,7 +8,7 @@ from sqlmodel import Session, desc, select
 
 from db.db import get_session
 from models.dao.user_dao import UserRegister, UserLogin
-from models.dto.messgage_dto import Message
+from models.dto.messgage_dto import Response
 from models.dto.user_dto import UserDTO
 from models.model.user import User
 from utils.authenticate import authenticate_user, decode_token
@@ -27,28 +27,28 @@ class UserService:
     def get_user_by_id(self, id: int) -> User:
         return self.session.exec(select(User).where(User.id == id)).first()
 
-    def login(self, login_request: UserLogin) -> Message:
+    def login(self, login_request: UserLogin) -> Response:
         # query user, not exist return error
         user = self.session.exec(select(User).where(User.email == login_request.email)).first()
         print(user)
         if not user:
-            return Message(code="500", message="no such user")
+            return Response(code="500", message="no such user")
 
         try:
             password = login_request.password
             # TODO: Save token to redis
             access_token = authenticate_user(user, password)
 
-            return Message(code="200", message=str(access_token))
+            return Response(code="200", message=str(access_token))
 
         except Exception as e:
-            return Message(code="200", message=e)
+            return Response(code="200", message=e)
 
-    def register(self, register_request: UserRegister) -> Message:
+    def register(self, register_request: UserRegister) -> Response:
         password = register_request.password
         name = register_request.name
         if password == '':
-            return Message(code="200", message="password can not be empty")
+            return Response(code="200", message="password can not be empty")
 
         email = register_request.email
         exist_user = self.session.exec(select(User).where(User.email == email)).first()
@@ -70,15 +70,15 @@ class UserService:
             except Exception as e:
                 self.session.rollback()
 
-                return Message(code="500", message=str(e))
+                return Response(code="500", message=str(e))
 
-            return Message(code="200", message="success")
+            return Response(code="200", message="success")
         else:
-            return Message(code="200", message="user already exist")
+            return Response(code="200", message="user already exist")
 
         # 3. TODO: Auto login after register
 
-    def get_me(self, token: HTTPAuthorizationCredentials) -> Message:
+    def get_me(self, token: HTTPAuthorizationCredentials) -> Response:
         try:
             decode_payload = decode_token(token)
             email = decode_payload.get('email', None)
@@ -87,11 +87,11 @@ class UserService:
             dto = UserDTO.model_validate(user)
             # TODO: redirect
 
-            return Message(code="200", message=dto)
+            return Response(code="200", message=dto)
 
         except Exception as e:
             # TODO: redirect
-            return Message(code="500", message=str(e))
+            return Response(code="500", message=str(e))
 
 
 def get_user_service(session: Session = Depends(get_session)) -> UserService:
