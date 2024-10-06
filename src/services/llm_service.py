@@ -67,7 +67,9 @@ class LlmService:
         user = self.session.exec(
             select(User).where(User.email == email)).first()  # get current user TODO: get token from redis
         create_time = datetime.now()
-        model = message.get_model()
+        if message.get_model():
+            model = message.get_model()
+
 
         if message.get_conversation_id():
             conversation_id = message.get_conversation_id()
@@ -75,6 +77,8 @@ class LlmService:
                                              .where(llm_session.session_id == conversation_id)).first()
             if not conversation:
                 raise HTTPException(status_code=404, detail="Resource not found")
+
+            model = conversation.model
 
             messages = self.get_messages_by_conversation_id(conversation_id).get_message()
             latest_message = self.session.exec(select(llm_message)
