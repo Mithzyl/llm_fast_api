@@ -14,6 +14,7 @@ from models.dto.messgage_dto import Response
 from models.dto.session_dto import ChatSession
 from models.model.llm_cost import LlmCost
 from models.model.llm_message import llm_message, llm_session
+from models.model.llm_model import LlmModel
 from models.model.user import User
 from utils.authenticate import decode_token
 from utils.util import generate_md5_id
@@ -24,7 +25,7 @@ class LlmService:
         self.llm = llm
         self.session = session
 
-    def get_messages_by_conversation_id(self, conversation_id: str):
+    def get_messages_by_conversation_id(self, conversation_id: str) -> Response:
         try:
             messages = (
                 self.session.query(llm_message).filter(llm_message.session_id == conversation_id)
@@ -35,12 +36,12 @@ class LlmService:
 
         return Response(code="200", message=messages)
 
-    def get_message_by_message_id(self, message_id, session):
+    def get_message_by_message_id(self, message_id, session) -> Response:
         message = session.query(llm_message).filter(llm_message.id == message_id).first()
 
         return Response(code="200", message=message)
 
-    def get_sessions_by_user_id(self, user_id):
+    def get_sessions_by_user_id(self, user_id) -> Response:
         try:
             sessions = (self.session.query(llm_session).filter(llm_session.user_id == user_id)
                         .order_by(desc(llm_session.update_time)).all())
@@ -55,7 +56,7 @@ class LlmService:
 
         return Response(code="200", message=session_dto)
 
-    def create_chat(self, message: MessageDao, token: HTTPAuthorizationCredentials):
+    def create_chat(self, message: MessageDao, token: HTTPAuthorizationCredentials) -> Response:
         # 1. generate a session_id
         # 2. Add initial system message of llm
         # 3. create langchain prompt template
@@ -170,7 +171,7 @@ class LlmService:
                                          parent_id=user_message_id,
                                          children_id='')
 
-                # dialog session
+                # conversation session
                 last_conversation_id = self.session.exec(select(llm_session).order_by(desc(llm_session.id))).first().id
                 conversation_primary_id = last_conversation_id + 1
                 conversation = llm_session(
@@ -244,6 +245,11 @@ class LlmService:
                                create_time=create_time)
 
         return message_cost
+
+    def get_model_list(self) -> Response:
+        models = self.session.exec(select(LlmModel)).all()
+        print(models)
+        return Response(code="200", message=models)
 
 
 def get_llm_service(session: Session = Depends(get_session), llm: LlmApi = Depends(get_llm_api)) -> LlmService:

@@ -21,8 +21,9 @@ class UserService:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_users(self) -> List[User]:
-        return self.session.exec(select(User)).all()
+    def get_users(self) -> Response:
+        users = self.session.exec(select(User)).all()
+        return Response(code="200", message=users)
 
     def get_user_by_id(self, id: int) -> User:
         return self.session.exec(select(User).where(User.id == id)).first()

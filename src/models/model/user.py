@@ -6,7 +6,7 @@ from sqlmodel import SQLModel, Field
 
 
 class User(SQLModel, table=True):
-    # __tablename__ = "User"
+    __tablename__ = "User"
 
     id: int = Field(default=None, primary_key=True)
     userid: str = Field(default=None, nullable=False)
