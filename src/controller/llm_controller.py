@@ -42,7 +42,6 @@ async def create_chat(token: HTTPAuthorizationCredentials = Depends(security),
 
 # Get model list
 @router.get("/get_model", response_model=Response)
-async def get_models(llm_service: LlmService = Depends(get_llm_service)) -> Response:
+async def get_models() -> Response:
     print('called get_models')
-    return llm_service.get_model_list()
-
+    return Response(code="200", message="ok")

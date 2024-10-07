@@ -247,9 +247,9 @@ class LlmService:
         return message_cost
 
     def get_model_list(self) -> Response:
-        models = self.session.exec(select(LlmModel)).all()
-        print(models)
-        return Response(code="200", message=models)
+        # models = self.session.exec(select(LlmModel)).first()
+        # print(models)
+        return Response(code="200", message="ok")
 
 
 def get_llm_service(session: Session = Depends(get_session), llm: LlmApi = Depends(get_llm_api)) -> LlmService:
