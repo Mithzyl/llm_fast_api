@@ -7,7 +7,7 @@ from langchain_community.chat_models import ChatOpenAI
 from sqlmodel import Session, desc, select
 
 from db.db import get_session
-from llm.llm import LlmApi, get_llm_api
+from llm.llm_api import LlmApi, get_llm_api
 from models.dao.message_dao import MessageDao
 from models.dto.llm_dto import LlmDto
 from models.dto.messgage_dto import Response
