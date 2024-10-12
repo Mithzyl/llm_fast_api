@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Dict, Optional
 
-
+from BCEmbedding import RerankerModel
+from BCERerank import BCERerank
 from fastapi import Depends, Body
 from flashrank import Ranker
 from langchain.retrievers import ContextualCompressionRetriever
@@ -16,7 +17,6 @@ from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from models.dao.message_dao import MessageDao
 from utils.util import generate_md5_id
 
-from BCEmbedding.tools.langchain import BCERerank
 
 
 class LlmApi:
@@ -96,13 +96,15 @@ class LlmApi:
         except Exception as e:
             raise e
 
-    def RAG_chat(self, vectorstore, query):
+    def RAG_chat(self, vectorstore, query, searches):
         model = self.model
-        llm = ChatOpenAI(model=model, temperature=self.temperature, api_key='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')
+        llm = ChatOpenAI(model=model, temperature=self.temperature, api_key='key')
         PROMPT_TEMPLATE = """
         Human: You are an AI assistant, and provides answers to questions by using fact based and statistical information when possible.
         Use the following pieces of information to provide a concise answer to the question enclosed in <question> tags.
-        If you don't know the answer, just say that you don't know, don't try to make up an answer.
+        The response must restrictly follow the limitations, e.g. if a condition (e.g. country) is provided,
+        only give answers with the given condition.
+        
         
         <context>
         {context}
@@ -111,6 +113,9 @@ class LlmApi:
         <question>
         {question}
         </question>
+        Sometimes the question is implicit to retrieve information from the context, if so, try to analyze the information in the context
+        and see if it meets the goal.
+        
 
         The response should be specific and use statistics or numbers when possible.
 
@@ -121,11 +126,15 @@ class LlmApi:
             template=PROMPT_TEMPLATE, input_variables=["context", "question", "country"]
         )
         # Convert the vector store to a retriever
-        retriever = vectorstore.as_retriever(search_kwargs={"score_threshold": 0.5})
+        retriever = vectorstore.as_retriever(search_kwargs={"score_threshold": 0.5,
+                                                            "k": 50})
 
 
         # Define a function to format the retrieved documents
         def format_docs(docs):
+            return "\n\n".join(doc for doc in docs.get('rerank_passages', []))
+
+        def format_rerank(docs):
             return "\n\n".join(doc.page_content for doc in docs)
 
         def inspect(state):
@@ -133,19 +142,27 @@ class LlmApi:
                 print(v)
             return state
 
-        reranker_args = {'model': 'ms-marco-MultiBERT-L-12', 'top_n': 50}
+        ranker_args = {'model': 'ms-marco-MultiBERT-L-12', 'top_n': 10}
         ranker = Ranker(model_name='ms-marco-MultiBERT-L-12')
 
-        reranker_args = {'model': 'maidalun1020/bce-reranker-base_v1', 'top_n': 5, 'device': 'cpu'}  # 修改为本地路径
-        reranker = BCERerank(**reranker_args)
-        compressor = FlashrankRerank(client=reranker, **reranker_args)
+        reranker_args = {'top_n': 5, 'device': 'cpu'}  # 修改为本地路径
+        reranker = RerankerModel(model_name_or_path="maidalun1020/bce-reranker-base_v1")
+        bce_reranker = BCERerank(**reranker_args)
+        compressor = FlashrankRerank(client=ranker, **ranker_args)
 
         compression_retriever = ContextualCompressionRetriever(
-            base_compressor=compressor, base_retriever=retriever
+            base_compressor=bce_reranker, base_retriever=retriever
         )
 
+        sentence_pairs = [[query, passage.page_content] for passage in searches]
+        # scores = reranker.compute_score(sentence_pairs)
+        # rerank_results = reranker.rerank(query, [passage.page_content for passage in searches])
+
+        # reranked_content = format_docs(rerank_results)
+
+
         rag_chain = (
-                {"context": compression_retriever | format_docs, "question": RunnablePassthrough(), "country": RunnablePassthrough()}
+                {"context": compression_retriever | format_rerank, "question": RunnablePassthrough()}
                 | RunnableLambda(inspect)
                 | prompt
                 | llm
@@ -155,8 +172,9 @@ class LlmApi:
         # rag_chain.get_graph().print_ascii()
 
         # Invoke the RAG chain with a specific question and retrieve the response
-        res = rag_chain.invoke(query)
+        # res = rag_chain.invoke({"context": reranked_content, "question": query})
 
+        res = rag_chain.invoke(query)
         return res
 
 
