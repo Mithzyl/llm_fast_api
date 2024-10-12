@@ -17,8 +17,14 @@ class LlmApi:
         self.temperature = temperature
 
     def create_first_chat(self, message: str, model: Optional[str] = None) -> Dict[str, str]:
-        model = self.model or model
-        llm = ChatOpenAI(model=model, temperature=self.temperature)
+        model = model if model else self.model
+        llm = ChatOpenAI(model=model, temperature=self.temperature, openai_api_base='https://api.deepseek.com')
+        # llm = ChatOpenAI(
+        #     model='deepseek-chat',
+        #     openai_api_key='sk-3e80b5104a2749c5bb5c643aa7ef2d89',
+        #     openai_api_base='https://api.deepseek.com',
+        #     max_tokens=1024
+        # )
         system_template = "You are an assistant that helps with daily questions, english teaching and coding"
         prompt_template = ChatPromptTemplate.from_messages([
             ('system', system_template),

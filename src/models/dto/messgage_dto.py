@@ -5,7 +5,7 @@ from typing import List, Any
 @dataclass
 class Response:
     code: str
-    message: List[dict | str] | Any
+    message: Any
 
     def get_message(self) -> List | Any:
         return self.message

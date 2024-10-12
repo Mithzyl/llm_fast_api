@@ -10,6 +10,7 @@ from db.db import get_session
 from models.dao.user_dao import UserRegister, UserLogin
 from models.dto.messgage_dto import Response
 from models.dto.user_dto import UserDTO
+from models.model.llm_model import LlmModel
 from models.model.user import User
 from utils.authenticate import authenticate_user, decode_token
 from utils.jwt import encode_jwt, decode_jwt
@@ -93,6 +94,12 @@ class UserService:
         except Exception as e:
             # TODO: redirect
             return Response(code="500", message=str(e))
+
+    def get_models(self) -> Response:
+        models = self.session.exec(select(LlmModel)).all()
+        print(models)
+        return Response(code="200", message=models)
+
 
 
 def get_user_service(session: Session = Depends(get_session)) -> UserService:
