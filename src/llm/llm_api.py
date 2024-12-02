@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, Optional
 
 from BCEmbedding import RerankerModel
-from BCERerank import BCERerank
+# from BCERerank import BCERerank
 from fastapi import Depends, Body
 from flashrank import Ranker
 from langchain.retrievers import ContextualCompressionRetriever
@@ -14,6 +14,7 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 
+from llm.llm_provider import OpenAIProvider
 from models.dao.message_dao import MessageDao
 from utils.util import generate_md5_id
 
@@ -23,6 +24,7 @@ class LlmApi:
     def __init__(self, model: str, temperature: float):
         self.model = model
         self.temperature = temperature
+        self.client = OpenAIProvider("https://4785-2001-2043-b860-b00-7439-24d7-af13-7148.ngrok-free.app/v1")
 
     def create_first_chat(self, message: str, model: Optional[str] = None) -> Dict[str, str]:
         model = model if model else self.model
@@ -34,28 +36,41 @@ class LlmApi:
         #     max_tokens=1024
         # )
         system_template = "You are an assistant that helps with daily questions, english teaching and coding"
-        prompt_template = ChatPromptTemplate.from_messages([
-            ('system', system_template),
-            ('user', '{message}')
-        ])
-        parser = StrOutputParser()
-        chain = prompt_template | llm | parser
+        prompt_template = [
+            {"role": "system", "content": system_template},
+            {"role": "user", "content": message}
+        ]
+        # parser = StrOutputParser()
+        # chain = prompt_template | llm | parser
         try:
-            with get_openai_callback() as cb:
-                message_id = generate_md5_id()
-                ai_msg = chain.invoke({"message": message})
-                time = datetime.now()
-                response = {'message_id': message_id,
-                            'message': ai_msg,
-                            'role': 'assistant',
-                            'prompt_token': cb.prompt_tokens,
-                            'completion_token': cb.completion_tokens,
-                            'total_token': cb.total_tokens,
-                            'cost': cb.total_cost,
-                            'create_time': time,
-                            'model': model
-                            }
-                return response
+            # with get_openai_callback() as cb:
+            #     message_id = generate_md5_id()
+            #     ai_msg = chain.invoke({"message": message})
+            #     time = datetime.now()
+            #     response = {'message_id': message_id,
+            #                 'message': ai_msg,
+            #                 'role': 'assistant',
+            #                 'prompt_token': cb.prompt_tokens,
+            #                 'completion_token': cb.completion_tokens,
+            #                 'total_token': cb.total_tokens,
+            #                 'cost': cb.total_cost,
+            #                 'create_time': time,
+            #                 'model': model
+            #                 }
+            message_id = generate_md5_id()
+            ai_msg, usage = self.client.get_response(prompt_template)
+            time = datetime.now()
+            response = {'message_id': message_id,
+                        'message': ai_msg,
+                        'role': 'assistant',
+                        'prompt_token': usage.prompt_tokens,
+                        'completion_token': usage.completion_tokens,
+                        'total_token': usage.total_tokens,
+                        # 'cost': usage.total_cost,
+                        'create_time': time,
+                        'model': model
+                        }
+            return response
         except Exception as e:
             raise e
 
@@ -147,7 +162,7 @@ class LlmApi:
 
         reranker_args = {'top_n': 5, 'device': 'cpu'}  # 修改为本地路径
         reranker = RerankerModel(model_name_or_path="maidalun1020/bce-reranker-base_v1")
-        bce_reranker = BCERerank(**reranker_args)
+        bce_reranker = None
         compressor = FlashrankRerank(client=ranker, **ranker_args)
 
         compression_retriever = ContextualCompressionRetriever(
