@@ -29,7 +29,7 @@ class LlmService:
         try:
             messages = (
                 self.session.query(llm_message).filter(llm_message.session_id == conversation_id)
-                .order_by(desc(llm_message.create_time)).all()
+                .order_by(llm_message.create_time).all()
             )
         except Exception as e:
             return Response(code="500", message=str(e))
@@ -100,7 +100,7 @@ class LlmService:
                                        user_id=user.userid,
                                        create_time=create_time,
                                        update_time=update_time,
-                                       role='human',
+                                       role='user',
                                        parent_id=latest_message.message_id,
                                        children_id='')
 

@@ -6,7 +6,7 @@ from utils.util import read_yaml_config
 
 db_config = read_yaml_config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.yaml"))['database_config']
 sql_url = f"mysql+pymysql://{db_config['mysql_url']}:{db_config['port']}/{db_config['database_name']}?charset=utf8mb4"
-
+print("sql url:" + sql_url)
 engine = create_engine(sql_url)
 
 def create_db_and_tables() -> None:
