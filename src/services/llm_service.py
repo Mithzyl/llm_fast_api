@@ -7,7 +7,7 @@ from langchain_community.chat_models import ChatOpenAI
 from sqlmodel import Session, desc, select
 
 from db.db import get_session
-from llm.llm_api import LlmApi, get_llm_api
+from llm.llm_api import LlmApi, get_llm_api, LlmApiFactory
 from models.dao.message_dao import MessageDao
 from models.dto.llm_dto import LlmDto
 from models.dto.messgage_dto import Response
@@ -68,8 +68,8 @@ class LlmService:
         user = self.session.exec(
             select(User).where(User.email == email)).first()  # get current user TODO: get token from redis
         create_time = datetime.now()
-        if message.get_model():
-            model = message.get_model()
+
+        model = message.get_model()
 
 
         if message.get_conversation_id():
@@ -105,7 +105,7 @@ class LlmService:
                                        children_id='')
 
             latest_message.children_id = user_message_id
-            chat = self.llm.chat(messages, new_message, model)
+            chat = self.llm.chat(messages, new_message, self.llm.model)
             chat_id = chat.get('message_id')
             user_message.children_id = chat_id
 
@@ -117,7 +117,7 @@ class LlmService:
                                      user_id=user.userid,
                                      create_time=chat.get('create_time'),
                                      update_time=chat.get('create_time'),
-                                     role='assistant',
+                                     role=chat.get('role'),
                                      parent_id=user_message_id,
                                      children_id='')
 
@@ -149,7 +149,7 @@ class LlmService:
                                            user_id=user.userid,
                                            create_time=create_time,
                                            update_time=update_time,
-                                           role='human',
+                                           role='user',
                                            parent_id='',
                                            children_id='')
 

@@ -14,6 +14,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from openai import api_key
 
 from llm.llm_provider import OpenAIProvider
 from models.dao.message_dao import MessageDao
@@ -23,14 +24,22 @@ from utils.util import generate_md5_id
 
 
 class LlmApi:
-    def __init__(self, model: str, temperature: float):
+    def __init__(self, model: str, temperature: float, base_url: str = os.environ.get('llm_base_url'),
+                 api_key: str = os.environ.get('api_key')):
         self.model = model
         self.temperature = temperature
+        self.llm_base_url = base_url
+        self.api_key = api_key
 
-        # TODO: get model base url for oprai and local model
-        self.llm_base_url= os.environ.get('llm_base_url')
-        self.api_key = os.environ.get('OPENAI_API_KEY')
-        self.client = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
+        if 'gpt' in model:
+            self.llm_base_url = os.environ.get('openai_chat_url')
+            self.api_key = os.environ.get('OPENAI_API_KEY')
+        else:
+            self.llm_base_url = os.environ.get('llm_base_url')
+            self.api_key = os.environ.get('api_key')
+
+        self.provider = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
+
 
     def create_first_chat(self, message: str, model: Optional[str] = None) -> Dict[str, str]:
         model = model if model else self.model
@@ -42,7 +51,7 @@ class LlmApi:
         ]
 
         try:
-            return self.client.get_response(prompt_template, model)
+            return self.provider.get_response(prompt_template, model)
         except Exception as e:
             raise e
 
@@ -62,7 +71,7 @@ class LlmApi:
             prompt_template.append({"role": "user", "content": message})
 
 
-            return self.client.get_response(prompt_template, model)
+            return self.provider.get_response(prompt_template, model)
         except Exception as e:
             raise e
 
@@ -148,5 +157,9 @@ class LlmApi:
     #     return res
 
 
-def get_llm_api(model: str = 'qwen2:0.5b', temperature: float = 0.9) -> LlmApi:
+def get_llm_api(message: MessageDao = Body(), temperature: float = 0.9) -> LlmApi:
+    if not message.model:
+        model = 'qwen2:0.5b'
+    else:
+        model = message.model
     return LlmApi(model=model, temperature=temperature)
