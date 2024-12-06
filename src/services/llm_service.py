@@ -79,7 +79,7 @@ class LlmService:
             if not conversation:
                 raise HTTPException(status_code=404, detail="Resource not found")
 
-            model = conversation.model
+            # model = conversation.model
 
             messages = self.get_messages_by_conversation_id(conversation_id).get_message()
             latest_message = self.session.exec(select(llm_message)

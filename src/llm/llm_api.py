@@ -29,7 +29,7 @@ class LlmApi:
 
         # TODO: get model base url for oprai and local model
         self.llm_base_url= os.environ.get('llm_base_url')
-        self.api_key = os.environ.get('api_key')
+        self.api_key = os.environ.get('OPENAI_API_KEY')
         self.client = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
 
     def create_first_chat(self, message: str, model: Optional[str] = None) -> Dict[str, str]:
@@ -47,8 +47,7 @@ class LlmApi:
             raise e
 
     def chat(self, message_history: list, message: str, model: Optional[str] = None) -> Dict[str, str]:
-        model = self.model or model
-        llm = OpenAIProvider(self.llm_base_url, temperature=self.temperature, api_key=os.environ.get('api_key'))
+        model = model if model else self.model
 
         system_template = "You are an assistant that helps with daily questions, english teaching and coding"
         prompt_template = [
