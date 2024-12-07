@@ -26,7 +26,6 @@ class OpenAIProvider:
     def get_response(self, prompt: List[Any], model: str = 'qwen2:0.5b') -> dict[str, str | int | datetime | None]:
 
         try:
-
             self.completion = self.client.chat.completions.create(
                 model=model,
                 messages=prompt,
@@ -49,5 +48,8 @@ class OpenAIProvider:
             return response
         except Exception as e:
             raise e
+
+
+
 
 

@@ -7,7 +7,7 @@ from langchain_community.chat_models import ChatOpenAI
 from sqlmodel import Session, desc, select
 
 from db.db import get_session
-from llm.llm_api import LlmApi, get_llm_api, LlmApiFactory
+from llm.llm_api import LlmApi, get_llm_api
 from models.dao.message_dao import MessageDao
 from models.dto.llm_dto import LlmDto
 from models.dto.messgage_dto import Response
@@ -132,10 +132,11 @@ class LlmService:
             self.add_chat_session(cost)
 
         else:
-            try:  # create new conversation
+            try:
+                # create new conversation
                 conversation_id = generate_md5_id()
                 update_time = datetime.now()
-                title = message.get_message()[:len(message.get_message()) // 2]
+                title = self.llm.generate_conversation_title(message.get_message())
 
                 last_message_primary_id = self.session.exec(
                     select(llm_message).order_by(desc(llm_message.id))).first().id
