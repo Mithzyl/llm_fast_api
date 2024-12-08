@@ -18,9 +18,7 @@ from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from openai import api_key
 
 from llm.llm_provider import OpenAIProvider
-from models.param.message_param import MessageDao
-from models.model.llm_message import llm_message
-from utils.util import generate_md5_id
+
 
 
 
@@ -178,12 +176,6 @@ class LlmApi:
     #     res = rag_chain.invoke(query)
     #     return res
 
-def get_llm_api(message: MessageDao | None, temperature: float = 0.9) -> LlmApi:
-    if not message.model:
-        model = 'qwen2:0.5b'
-    else:
-        model = message.model
-    return LlmApi(model=model, temperature=temperature)
 
-def get_llm_api2(temperature: float = 0.9) -> LlmApi:
-    return LlmApi(model='qwen2:0.5b', temperature=temperature)
+
+

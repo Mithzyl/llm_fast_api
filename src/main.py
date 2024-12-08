@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import yaml
 from fastapi import FastAPI
 
-from controller import user_controller, llm_controller
+from routers import user_router, llm_router
 from db.db import create_db_and_tables, create_db
 from utils.util import set_api_key_environ
 
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.include_router(user_controller.user_router)
-app.include_router(llm_controller.llm_router)
+app.include_router(user_router.user_router)
+app.include_router(llm_router.llm_router)
 
 

@@ -3,13 +3,11 @@ from fastapi.openapi.models import HTTPBearer
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import Session
 
-from controller.user_controller import security
-from db.db import get_session
-from models.param.message_param import MessageDao,ChatCreateParam
-from models.dto.messgage_dto import Response
-# from services import llm_service
-from services.llm_service import LlmService, get_llm_service, get_conversation_history_service
-from services.user_service import UserService, get_user_service
+from dependencies.llm_dependency import get_llm_service, get_llm_api
+from routers.user_router import security
+from models.param.message_param import ChatCreateParam
+from models.response.messgage_response import Response
+from services.llm_service import LlmService
 
 llm_router = APIRouter(
     prefix="/llm",
@@ -19,11 +17,12 @@ llm_router = APIRouter(
 #Create a new session of chat
 @llm_router.post("/chat", response_model=Response)
 async def create_chat(
-        create_param: ChatCreateParam = Body(),
+        llm_param: ChatCreateParam = Body(),
         token: HTTPAuthorizationCredentials = Depends(security),
-        llm_service=Depends(get_llm_service)
+        llm_service=Depends(get_llm_service),
+        llm_api = Depends(get_llm_api)
 ) -> Response:
-    return llm_service.create_chat(create_param, token)
+    return llm_service.create_chat(llm_param, token, llm_api)
 
 
 # Get model list
@@ -33,11 +32,11 @@ async def get_models(llm_service: LlmService = Depends(get_llm_service)) -> Resp
 
 
 @llm_router.get("/conversation/{message_id}", response_model=Response)
-async def demo_conversation(message_id: int, llm_service: LlmService = Depends(get_llm_service)):
+async def get_message_by_id(message_id: int, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_message_by_message_id(message_id)
 
 @llm_router.get("/{conversation_id}", response_model=Response)
-async def get_conversation_history(conversation_id: str, llm_service: LlmService = Depends(get_conversation_history_service)):
+async def get_conversation_history(conversation_id: str, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_messages_by_conversation_id(conversation_id)
 
 

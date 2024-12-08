@@ -7,9 +7,9 @@ from passlib.hash import bcrypt
 from sqlmodel import Session, desc, select
 
 from db.db import get_session
-from models.param.user_dao import UserRegister, UserLogin
-from models.dto.messgage_dto import Response
-from models.dto.user_dto import UserDTO
+from models.param.user_param import UserRegister, UserLogin
+from models.response.messgage_response import Response
+from models.response.user_response import UserDTO
 from models.model.llm_model import LlmModel
 from models.model.user import User
 from utils.authenticate import authenticate_user, decode_token
@@ -102,7 +102,6 @@ class UserService:
 
 
 
-def get_user_service(session: Session = Depends(get_session)) -> UserService:
-    return UserService(session)
+
 
 

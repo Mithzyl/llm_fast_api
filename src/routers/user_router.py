@@ -4,10 +4,11 @@ from sqlalchemy.testing.pickleable import User
 from sqlmodel import Session
 from starlette.responses import JSONResponse
 
-from models.param.user_dao import UserLogin, UserRegister
-from models.dto.messgage_dto import Response
+from dependencies.user_dependency import get_user_service
+from models.param.user_param import UserLogin, UserRegister
+from models.response.messgage_response import Response
 from services import user_service
-from services.user_service import UserService, get_user_service
+from services.user_service import UserService
 
 user_router = APIRouter(
     prefix="/users",

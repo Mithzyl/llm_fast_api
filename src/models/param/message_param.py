@@ -3,7 +3,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class MessageDao(BaseModel):
+class MessageParam(BaseModel):
     message: str
     conversation_id: Optional[str]
     model: Optional[str]
@@ -17,5 +17,5 @@ class MessageDao(BaseModel):
     def get_model(self):
         return self.model
 
-class ChatCreateParam(MessageDao):
+class ChatCreateParam(MessageParam):
     temperature: float

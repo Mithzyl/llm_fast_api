@@ -7,11 +7,11 @@ from langchain_community.chat_models import ChatOpenAI
 from sqlmodel import Session, desc, select
 
 from db.db import get_session
-from llm.llm_api import LlmApi, get_llm_api, get_llm_api2
-from models.param.message_param import MessageDao,ChatCreateParam
-from models.dto.llm_dto import LlmDto
-from models.dto.messgage_dto import Response
-from models.dto.session_dto import ChatSession
+from llm.llm_api import LlmApi
+from models.param.message_param import ChatCreateParam
+from models.response.llm_response import LlmDto
+from models.response.messgage_response import Response
+from models.response.chat_session_response import ChatSession
 from models.model.llm_cost import LlmCost
 from models.model.llm_message import llm_message, llm_session
 from models.model.llm_model import LlmModel
@@ -29,23 +29,23 @@ class LlmService:
     def get_messages_by_conversation_id(self, conversation_id: str) -> Response:
         try:
             messages = (
-                self.session.query(llm_message).filter(llm_message.session_id == conversation_id)
-                .order_by(llm_message.create_time).all()
+                self.session.exec(select(llm_message).filter(llm_message.session_id == conversation_id)
+                .order_by(llm_message.create_time)).all()
             )
         except Exception as e:
             return Response(code="500", message=str(e))
 
         return Response(code="200", message=messages)
 
-    def get_message_by_message_id(self, message_id, session) -> Response:
-        message = session.query(llm_message).filter(llm_message.id == message_id).first()
+    def get_message_by_message_id(self, message_id: object) -> Response:
+        message = self.session.exec(select(llm_message).filter(llm_message.id == message_id)).first()
 
         return Response(code="200", message=message)
 
     def get_sessions_by_user_id(self, user_id) -> Response:
         try:
-            sessions = (self.session.query(llm_session).filter(llm_session.user_id == user_id)
-                        .order_by(desc(llm_session.update_time)).all())
+            sessions = (self.session.exec(select(llm_session).filter(llm_session.user_id == user_id)
+                        .order_by(desc(llm_session.update_time))).all())
 
             session_dto = []
             for session in sessions:
@@ -57,25 +57,25 @@ class LlmService:
 
         return Response(code="200", message=session_dto)
 
-    def create_chat(self, message: ChatCreateParam, token: HTTPAuthorizationCredentials) -> Response:
+    def create_chat(self, llm_param: ChatCreateParam, token: HTTPAuthorizationCredentials, llm: LlmApi) -> Response:
         # 1. generate a session_id
         # 2. Add initial system message of llm
         # 3. create langchain prompt template
         # 4. call LLM API
         # 5. save message and the session
 
-        llm = get_llm_api(message, message.temperature)
+        # llm = get_llm_api(message, message.temperature)
         payload = decode_token(token)
         email = payload.get("email")
         user = self.session.exec(
             select(User).where(User.email == email)).first()  # get current user TODO: get token from redis
         create_time = datetime.now()
 
-        model = message.get_model()
+        model = llm_param.get_model()
 
 
-        if message.get_conversation_id():
-            conversation_id = message.get_conversation_id()
+        if llm_param.get_conversation_id():
+            conversation_id = llm_param.get_conversation_id()
             conversation = self.session.exec(select(llm_session)
                                              .where(llm_session.session_id == conversation_id)).first()
             if not conversation:
@@ -88,7 +88,7 @@ class LlmService:
                                                .where(llm_message.session_id == conversation_id)
                                                .order_by(desc(llm_message.create_time))).first()
 
-            new_message = message.get_message()
+            new_message = llm_param.get_message()
 
             last_message_primary_id = self.session.exec(select(llm_message).order_by(desc(llm_message.id))).first().id
             # message from the user
@@ -98,7 +98,7 @@ class LlmService:
             user_message = llm_message(id=user_message_primary_id,
                                        message_id=user_message_id,
                                        session_id=conversation_id,
-                                       message=message.get_message(),
+                                       message=llm_param.get_message(),
                                        user_id=user.userid,
                                        create_time=create_time,
                                        update_time=update_time,
@@ -138,7 +138,7 @@ class LlmService:
                 # create new conversation
                 conversation_id = generate_md5_id()
                 update_time = datetime.now()
-                title = llm.generate_conversation_title(message.get_message())
+                title = llm.generate_conversation_title(llm_param.get_message())
 
                 last_message_primary_id = self.session.exec(
                     select(llm_message).order_by(desc(llm_message.id))).first().id
@@ -148,7 +148,7 @@ class LlmService:
                 user_message = llm_message(id=user_message_primary_id,
                                            message_id=user_message_id,
                                            session_id=conversation_id,
-                                           message=message.get_message(),
+                                           message=llm_param.get_message(),
                                            user_id=user.userid,
                                            create_time=create_time,
                                            update_time=update_time,
@@ -156,7 +156,7 @@ class LlmService:
                                            parent_id='',
                                            children_id='')
 
-                chat = llm.create_first_chat(message.get_message(), model)
+                chat = llm.create_first_chat(llm_param.get_message(), model)
                 chat_id = chat.get('message_id')
                 user_message.children_id = chat_id
 
@@ -202,7 +202,7 @@ class LlmService:
         conversation_response = LlmDto(conversation_id=conversation_id, content=chat, model=model)
         return Response(code="200", message=conversation_response)
 
-    def post_message(self, message: MessageDao, token: HTTPAuthorizationCredentials):
+    def post_message(self, message: ChatCreateParam, token: HTTPAuthorizationCredentials):
         # 1. get messages from the session
         # 2. get parent message info
         # 3. get llm response and construct new message
@@ -258,11 +258,4 @@ class LlmService:
         return Response(code="200", message=models)
 
 
-def get_llm_service(session: Session = Depends(get_session)) -> LlmService:
-    return LlmService(session)
 
-
-def get_conversation_history_service(session: Session = Depends(get_session), temperature: float = 0.9) -> LlmService:
-    llm: LlmApi = LlmApi(model='qwen2:0.5b', temperature=temperature)
-    print(temperature)
-    return LlmService(session, llm)
