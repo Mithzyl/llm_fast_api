@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Optional
 
 from pydantic import BaseModel
@@ -17,3 +16,6 @@ class MessageDao(BaseModel):
 
     def get_model(self):
         return self.model
+
+class ChatCreateParam(MessageDao):
+    temperature: float

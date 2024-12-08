@@ -7,7 +7,7 @@ from passlib.hash import bcrypt
 from sqlmodel import Session, desc, select
 
 from db.db import get_session
-from models.dao.user_dao import UserRegister, UserLogin
+from models.param.user_dao import UserRegister, UserLogin
 from models.dto.messgage_dto import Response
 from models.dto.user_dto import UserDTO
 from models.model.llm_model import LlmModel

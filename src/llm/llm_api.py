@@ -5,6 +5,7 @@ from typing import Dict, Optional
 # from BCEmbedding import RerankerModel
 # from BCERerank import BCERerank
 from fastapi import Depends, Body
+from langchain.chains.summarize.refine_prompts import prompt_template
 # from flashrank import Ranker
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.callbacks import get_openai_callback
@@ -17,7 +18,7 @@ from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from openai import api_key
 
 from llm.llm_provider import OpenAIProvider
-from models.dao.message_dao import MessageDao
+from models.param.message_param import MessageDao
 from models.model.llm_message import llm_message
 from utils.util import generate_md5_id
 
@@ -31,6 +32,9 @@ class LlmApi:
         self.llm_base_url = base_url
         self.api_key = api_key
 
+        self.title_llm_url = os.environ.get('llm_base_url')
+        self.title_api_key = os.environ.get('api_key')
+
         if 'gpt' in model:
             self.llm_base_url = os.environ.get('openai_chat_url')
             self.api_key = os.environ.get('OPENAI_API_KEY')
@@ -39,6 +43,24 @@ class LlmApi:
             self.api_key = os.environ.get('api_key')
 
         self.provider = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
+        self.title_provider = OpenAIProvider(base_url=self.title_llm_url, api_key=self.title_api_key)
+
+
+    def generate_conversation_title(self, message: str, model: Optional[str] = "qwen2:0.5b") -> str:
+        system_template = f"""
+                            You need to generate a title for this round of conversation based on the user input,
+                            the word count is within 10.
+                          """
+        prompt_template = [
+            {"role": "system", "content": system_template},
+            {"role": "user", "content": message}
+        ]
+        try:
+            response = self.title_provider.get_response(prompt_template, model)
+            title = response.get('message', message[:10 if len(message) < 10 else len(message)])
+            return title
+        except Exception as e:
+            raise e
 
 
     def create_first_chat(self, message: str, model: Optional[str] = None) -> Dict[str, str]:
@@ -156,10 +178,12 @@ class LlmApi:
     #     res = rag_chain.invoke(query)
     #     return res
 
-
-def get_llm_api(message: MessageDao = Body(), temperature: float = 0.9) -> LlmApi:
+def get_llm_api(message: MessageDao | None, temperature: float = 0.9) -> LlmApi:
     if not message.model:
         model = 'qwen2:0.5b'
     else:
         model = message.model
     return LlmApi(model=model, temperature=temperature)
+
+def get_llm_api2(temperature: float = 0.9) -> LlmApi:
+    return LlmApi(model='qwen2:0.5b', temperature=temperature)
