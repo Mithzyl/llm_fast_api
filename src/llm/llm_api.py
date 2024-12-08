@@ -20,8 +20,6 @@ from openai import api_key
 from llm.llm_provider import OpenAIProvider
 
 
-
-
 class LlmApi:
     def __init__(self, model: str, temperature: float, base_url: str = os.environ.get('llm_base_url'),
                  api_key: str = os.environ.get('api_key')):
@@ -33,12 +31,31 @@ class LlmApi:
         self.title_llm_url = os.environ.get('llm_base_url')
         self.title_api_key = os.environ.get('api_key')
 
-        if 'gpt' in model:
-            self.llm_base_url = os.environ.get('openai_chat_url')
-            self.api_key = os.environ.get('OPENAI_API_KEY')
-        else:
-            self.llm_base_url = os.environ.get('llm_base_url')
-            self.api_key = os.environ.get('api_key')
+        self.model_configs = {
+            # configure model here
+            'gpt': {
+                'base_url': os.environ.get('openai_chat_url'),
+                'api_key': os.environ.get('OPENAI_API_KEY')
+            },
+            'gemma': {
+                'base_url': os.environ.get('gemma_base_url'),
+                'api_key': os.environ.get('GEMMA_API_KEY')
+            },
+            'deepseek': {
+                'base_url': os.environ.get('deepseek_base_url'),
+                'api_key': os.environ.get('DEEPSEEK_API_KEY')
+            },
+            'qwen': {
+                'base_url': os.environ.get('qwen_base_url'),
+                'api_key': os.environ.get('QWEN_API_KEY')
+            },
+
+        }
+
+        for key in self.model_configs.keys():
+            if key in model:
+                self.base_url = self.model_configs[key]['base_url']
+                self.api_key = self.model_configs[key]['api_key']
 
         self.provider = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
         self.title_provider = OpenAIProvider(base_url=self.title_llm_url, api_key=self.title_api_key)

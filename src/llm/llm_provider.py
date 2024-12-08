@@ -2,9 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, List, Tuple, Any
 
-import openai
 from openai import OpenAI
-from openai.types import CompletionUsage
 
 from utils.util import generate_md5_id
 
