@@ -11,10 +11,10 @@ def get_llm_service(session: Session = Depends(get_session)) -> LlmService:
     return LlmService(session)
 
 
-def get_llm_api(llm_param: ChatCreateParam, temperature: float = 0.9) -> LlmApi:
+def get_llm_api(llm_param: ChatCreateParam) -> LlmApi:
     default_model = 'qwen2:0.5b'
     if not llm_param.model:
         model = default_model
     else:
         model = llm_param.model
-    return LlmApi(model=model, temperature=temperature)
+    return LlmApi(model=model, temperature=llm_param.temperature)

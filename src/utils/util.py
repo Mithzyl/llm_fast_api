@@ -6,6 +6,8 @@ from pathlib import Path
 import random
 
 import yaml
+from langgraph.graph import StateGraph
+from matplotlib import image as mpimg, pyplot as plt
 
 
 def read_yaml_config(yaml_file: str) -> dict:
@@ -38,3 +40,19 @@ def generate_md5_id() -> str:
 
     # 返回 MD5 哈希的十六进制表示
     return md5_hash.hexdigest()
+
+def draw_lang_graph_flow(graph: StateGraph):
+    try:
+        mermaid_code = graph.get_graph().draw_mermaid_png()
+        with open("graph.jpg", "wb") as f:
+            f.write(mermaid_code)
+
+        # 使用 matplotlib 显示图像
+        img = mpimg.imread("graph.jpg")
+        plt.imshow(img)
+        plt.axis('off')  # 关闭坐标轴
+        plt.show()
+
+    except Exception:
+        # This requires some extra dependencies and is optional
+        pass

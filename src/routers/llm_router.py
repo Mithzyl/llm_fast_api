@@ -22,7 +22,7 @@ async def create_chat(
         llm_service=Depends(get_llm_service),
         llm_api = Depends(get_llm_api)
 ) -> Response:
-    return llm_service.create_chat(llm_param, token, llm_api)
+        return llm_service.create_chat(llm_param, token, llm_api)
 
 
 # Get model list

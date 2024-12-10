@@ -107,25 +107,25 @@ class LlmService:
                                        children_id='')
 
             latest_message.children_id = user_message_id
-            chat = llm.chat(messages, new_message, llm.model)
-            chat_id = chat.get('message_id')
+            chat_state_response = llm.chat(messages, new_message, llm.model)
+            chat_id = chat_state_response.get('message_id')
             user_message.children_id = chat_id
 
             ai_primary_id = user_message.id + 1
             ai_message = llm_message(id=ai_primary_id,
                                      message_id=chat_id,
                                      session_id=conversation_id,
-                                     message=chat.get('message'),
+                                     message=chat_state_response.get('message'),
                                      user_id=user.userid,
-                                     create_time=chat.get('create_time'),
-                                     update_time=chat.get('create_time'),
-                                     role=chat.get('role'),
+                                     create_time=chat_state_response.get('create_time'),
+                                     update_time=chat_state_response.get('create_time'),
+                                     role=chat_state_response.get('role'),
                                      parent_id=user_message_id,
                                      children_id='')
 
-            cost = self.cal_cost(chat, user.userid)
+            cost = self.cal_cost(chat_state_response, user.userid)
 
-            conversation.update_time = chat.get('create_time')
+            conversation.update_time = chat_state_response.get('create_time')
 
             self.add_chat_session(conversation)
             self.add_chat_session(latest_message)
@@ -135,11 +135,12 @@ class LlmService:
 
         else:
             try:
+                
                 # create new conversation
                 conversation_id = generate_md5_id()
                 update_time = datetime.now()
-                title = llm.generate_conversation_title(llm_param.get_message())
-
+                # title = llm.generate_conversation_title(llm_param.get_message())
+                #
                 last_message_primary_id = self.session.exec(
                     select(llm_message).order_by(desc(llm_message.id))).first().id
                 # message from the user
@@ -156,21 +157,24 @@ class LlmService:
                                            parent_id='',
                                            children_id='')
 
-                chat = llm.create_first_chat(llm_param.get_message(), model)
-                chat_id = chat.get('message_id')
+                # chat = llm.create_first_chat(llm_param.get_message(), model)
+                chat_state = llm.run_workflow(llm_param.get_message())
+                chat_state_response = chat_state['response']
+                chat_id = chat_state_response.get('message_id')
+                chat_title = chat_state['title']
                 user_message.children_id = chat_id
 
                 # message response from the model
                 ai_message_id = user_message_primary_id + 1
                 ai_message = llm_message(id=ai_message_id,
-                                         message_id=chat.get('message_id'),
+                                         message_id=chat_state_response.get('message_id'),
                                          session_id=conversation_id,
-                                         title=title,
-                                         message=chat.get('message'),
+                                         title=chat_title,
+                                         message=chat_state_response.get('message'),
                                          user_id=user.userid,
-                                         create_time=chat.get('create_time'),
-                                         update_time=chat.get('create_time'),
-                                         role=chat.get('role'),
+                                         create_time=chat_state_response.get('create_time'),
+                                         update_time=chat_state_response.get('create_time'),
+                                         role=chat_state_response.get('role'),
                                          parent_id=user_message_id,
                                          children_id='')
 
@@ -180,14 +184,14 @@ class LlmService:
                 conversation = llm_session(
                     id=conversation_primary_id,
                     session_id=conversation_id,
-                    title=title,
+                    title=chat_title,
                     user_id=user.userid,
                     create_time=create_time,
                     update_time=update_time,
-                    model=chat.get('model'))
+                    model=chat_state_response.get('model'))
 
                 # cost
-                message_cost = self.cal_cost(chat, user.userid)
+                message_cost = self.cal_cost(chat_state_response, user.userid)
 
                 self.add_chat_session(user_message)
                 self.add_chat_session(ai_message)
@@ -199,7 +203,7 @@ class LlmService:
             except Exception as e:
                 return Response(code="500", message=e)
 
-        conversation_response = LlmDto(conversation_id=conversation_id, content=chat, model=model)
+        conversation_response = LlmDto(conversation_id=conversation_id, content=chat_state_response, model=model)
         return Response(code="200", message=conversation_response)
 
     def post_message(self, message: ChatCreateParam, token: HTTPAuthorizationCredentials):
@@ -229,15 +233,15 @@ class LlmService:
         self.add_chat_session(ai_message)
         self.add_chat_session(cost)
 
-    def cal_cost(self, chat: Dict, user_id: str) -> LlmCost:
-        create_time = chat.get('create_time')
+    def cal_cost(self, chat_state_response: dict, user_id: str) -> LlmCost:
+        create_time = chat_state_response.get('create_time')
         last_cost_id = self.session.exec(select(LlmCost).order_by(desc(LlmCost.id))).first().id
         cost_id = last_cost_id + 1
-        message_id = chat.get('message_id')
-        prompt_token = chat.get('prompt_token')
-        complete_token = chat.get('completion_token')
-        total_token = chat.get('total_token')
-        cost = chat.get('cost')
+        message_id = chat_state_response.get('message_id')
+        prompt_token = chat_state_response.get('prompt_token')
+        complete_token = chat_state_response.get('completion_token')
+        total_token = chat_state_response.get('total_token')
+        cost = chat_state_response.get('cost')
         message_cost = LlmCost(id=cost_id,
                                user_id=user_id,
                                message_id=message_id,
@@ -252,7 +256,7 @@ class LlmService:
     def get_model_list(self) -> Response:
         try:
             models = self.session.exec(select(LlmModel)).all()
-            # print(models)
+
         except Exception as e:
             return Response(code="500", message=e)
         return Response(code="200", message=models)

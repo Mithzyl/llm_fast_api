@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 # from BCEmbedding import RerankerModel
 # from BCERerank import BCERerank
@@ -10,23 +10,24 @@ from langchain.chains.summarize.refine_prompts import prompt_template
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.callbacks import get_openai_callback
 
-from langchain_community.document_compressors import FlashrankRerank
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-from openai import api_key
+from langchain_core.messages import convert_to_openai_messages
+from langgraph.constants import END, START
+from langgraph.graph import StateGraph
+
 
 from llm.llm_provider import OpenAIProvider
+from llm.llm_state import State
+
+from utils.util import draw_lang_graph_flow
 
 
 class LlmApi:
-    def __init__(self, model: str, temperature: float, base_url: str = os.environ.get('llm_base_url'),
-                 api_key: str = os.environ.get('api_key')):
+    def __init__(self, model: str, temperature: float, base_url: Optional[str] = None,
+                 api_key: Optional[str] = None):
         self.model = model
         self.temperature = temperature
-        self.llm_base_url = base_url
-        self.api_key = api_key
+        self.llm_base_url = base_url if base_url else os.environ.get('llm_base_url')
+        self.api_key = api_key if api_key else os.environ.get('api_key')
 
         self.title_llm_url = os.environ.get('llm_base_url')
         self.title_api_key = os.environ.get('api_key')
@@ -46,55 +47,102 @@ class LlmApi:
                 'api_key': os.environ.get('DEEPSEEK_API_KEY')
             },
             'qwen': {
-                'base_url': os.environ.get('qwen_base_url'),
-                'api_key': os.environ.get('QWEN_API_KEY')
+                'base_url': os.environ.get('llm_base_url'),
+                'api_key': os.environ.get('api_key')
             },
+            'llama': {
+                'base_url': os.environ.get('llm_base_url'),
+                'api_key': os.environ.get('api_key')
+            },
+
 
         }
 
         for key in self.model_configs.keys():
             if key in model:
-                self.base_url = self.model_configs[key]['base_url']
+                self.llm_base_url = self.model_configs[key]['base_url']
                 self.api_key = self.model_configs[key]['api_key']
 
         self.provider = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
         self.title_provider = OpenAIProvider(base_url=self.title_llm_url, api_key=self.title_api_key)
 
+        # define lang graph workflow
+        self.graph = StateGraph(State)
 
-    def generate_conversation_title(self, message: str, model: Optional[str] = "qwen2:0.5b") -> str:
+
+    def create_input_node(self, input_prompt: List[dict]) -> dict[str, list[dict]]:
+        # open_ai_messages = convert_to_openai_messages(input_prompt['message'])
+        state = State(input_prompt)
+        return input_prompt
+
+
+    def build_first_chat_workflow(self):
+        # try for lang graph with debugging first
+        self.graph.add_node("create_input_node", self.create_input_node)
+        self.graph.add_node("generate_conversation_title", self.generate_conversation_title)
+        self.graph.add_node("generate_conversation_response", self.create_first_chat)
+
+        self.graph.set_entry_point("create_input_node")
+
+        self.graph.add_edge("create_input_node", "generate_conversation_title")
+        self.graph.add_edge("create_input_node", "generate_conversation_response")
+        self.graph.add_edge("generate_conversation_title", END)
+        self.graph.add_edge("generate_conversation_response", END)
+
+
+    def run_workflow(self, prompt_input):
+        try:
+            self.build_first_chat_workflow()
+            graph = self.graph.compile()
+
+            # draw_lang_graph_flow(graph)
+
+            finish_state = graph.invoke({"message": prompt_input})
+
+            return finish_state
+
+        except Exception as e:
+            print(e)
+
+
+    def generate_conversation_title(self, message: dict, model: Optional[str] = "qwen2:0.5b") -> str:
+        user_message = message["message"]
         system_template = f"""
-                            You need to generate a title for this round of conversation based on the user input,
-                            the word count is within 10.
+                            You need to generate a title by using the input in 10 words.
                           """
         prompt_template = [
             {"role": "system", "content": system_template},
-            {"role": "user", "content": message}
+            {"role": "user", "content": user_message}
         ]
         try:
             response = self.title_provider.get_response(prompt_template, model)
-            title = response.get('message', message[:10 if len(message) < 10 else len(message)])
-            return title
+            title = response.get('message', user_message[:10 if len(user_message) > 10 else len(user_message)])
+            state = State({'title': title})
+            return state
         except Exception as e:
             raise e
 
 
-    def create_first_chat(self, message: str, model: Optional[str] = None) -> Dict[str, str]:
+    def create_first_chat(self, message: dict, model: Optional[str] = None) -> Dict[str, str]:
         model = model if model else self.model
 
+        user_message = message["message"]
         system_template = "You are an assistant that helps with daily questions, coding"
         prompt_template = [
             {"role": "system", "content": system_template},
-            {"role": "user", "content": message}
+            {"role": "user", "content": user_message}
         ]
 
         try:
-            return self.provider.get_response(prompt_template, model)
+            response = self.provider.get_response(prompt_template, model)
+            return State({"response": response})
         except Exception as e:
             raise e
 
-    def chat(self, message_history: list, message: str, model: Optional[str] = None) -> Dict[str, str]:
+    def chat(self, message_history: list, message: dict, model: Optional[str] = None) -> Dict[str, str]:
         model = model if model else self.model
 
+        user_message = message["message"]
         system_template = "You are an assistant that helps with daily questions, english teaching and coding"
         prompt_template = [
             {"role": "system", "content": system_template}
@@ -105,10 +153,10 @@ class LlmApi:
                 history_message = {"role": history.role, "content": history.message}
                 prompt_template.append(history_message)
 
-            prompt_template.append({"role": "user", "content": message})
+            prompt_template.append({"role": "user", "content": user_message})
 
-
-            return self.provider.get_response(prompt_template, model)
+            response = self.provider.get_response(prompt_template, model)
+            return {"response": response}
         except Exception as e:
             raise e
 
