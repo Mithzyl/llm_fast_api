@@ -8,6 +8,7 @@ from sqlmodel import Session, desc, select
 
 from db.db import get_session
 from llm.llm_api import LlmApi
+from llm.llm_state import LlmGraph
 from models.param.message_param import ChatCreateParam
 from models.response.llm_response import LlmDto
 from models.response.messgage_response import Response
@@ -57,7 +58,7 @@ class LlmService:
 
         return Response(code="200", message=session_dto)
 
-    def create_chat(self, llm_param: ChatCreateParam, token: HTTPAuthorizationCredentials, llm: LlmApi) -> Response:
+    def create_chat(self, llm_param: ChatCreateParam, token: HTTPAuthorizationCredentials, llm_graph: LlmGraph) -> Response:
         # 1. generate a session_id
         # 2. Add initial system message of llm
         # 3. create langchain prompt template
@@ -107,7 +108,7 @@ class LlmService:
                                        children_id='')
 
             latest_message.children_id = user_message_id
-            chat_state_response = llm.chat(messages, new_message, llm.model)
+            chat_state_response = llm_graph.chat(messages, new_message, llm_graph.model)
             chat_id = chat_state_response.get('message_id')
             user_message.children_id = chat_id
 
@@ -158,7 +159,7 @@ class LlmService:
                                            children_id='')
 
                 # chat = llm.create_first_chat(llm_param.get_message(), model)
-                chat_state = llm.run_workflow(llm_param.get_message())
+                chat_state = llm_graph.run_first_chat_workflow(llm_param.get_message())
                 chat_state_response = chat_state['response']
                 chat_id = chat_state_response.get('message_id')
                 chat_title = chat_state['title']

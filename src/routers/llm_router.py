@@ -3,7 +3,7 @@ from fastapi.openapi.models import HTTPBearer
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import Session
 
-from dependencies.llm_dependency import get_llm_service, get_llm_api
+from dependencies.llm_dependency import get_llm_service, get_llm_api, get_llm_graph
 from routers.user_router import security
 from models.param.message_param import ChatCreateParam
 from models.response.messgage_response import Response
@@ -19,10 +19,10 @@ llm_router = APIRouter(
 async def create_chat(
         llm_param: ChatCreateParam = Body(),
         token: HTTPAuthorizationCredentials = Depends(security),
-        llm_service=Depends(get_llm_service),
-        llm_api = Depends(get_llm_api)
+        llm_service = Depends(get_llm_service),
+        llm_graph = Depends(get_llm_graph)
 ) -> Response:
-        return llm_service.create_chat(llm_param, token, llm_api)
+        return llm_service.create_chat(llm_param, token, llm_graph)
 
 
 # Get model list

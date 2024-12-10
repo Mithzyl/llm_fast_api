@@ -14,9 +14,7 @@ from langchain_core.messages import convert_to_openai_messages
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 
-
 from llm.llm_provider import OpenAIProvider
-from llm.llm_state import State
 
 from utils.util import draw_lang_graph_flow
 
@@ -32,7 +30,7 @@ class LlmApi:
         self.title_llm_url = os.environ.get('llm_base_url')
         self.title_api_key = os.environ.get('api_key')
 
-        self.model_configs = {
+        self.model_list = {
             # configure model here
             'gpt': {
                 'base_url': os.environ.get('openai_chat_url'),
@@ -54,56 +52,17 @@ class LlmApi:
                 'base_url': os.environ.get('llm_base_url'),
                 'api_key': os.environ.get('api_key')
             },
-
-
         }
 
-        for key in self.model_configs.keys():
+        for key in self.model_list.keys():
             if key in model:
-                self.llm_base_url = self.model_configs[key]['base_url']
-                self.api_key = self.model_configs[key]['api_key']
+                self.llm_base_url = self.model_list[key]['base_url']
+                self.api_key = self.model_list[key]['api_key']
 
         self.provider = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
         self.title_provider = OpenAIProvider(base_url=self.title_llm_url, api_key=self.title_api_key)
 
         # define lang graph workflow
-        self.graph = StateGraph(State)
-
-
-    def create_input_node(self, input_prompt: List[dict]) -> dict[str, list[dict]]:
-        # open_ai_messages = convert_to_openai_messages(input_prompt['message'])
-        state = State(input_prompt)
-        return input_prompt
-
-
-    def build_first_chat_workflow(self):
-        # try for lang graph with debugging first
-        self.graph.add_node("create_input_node", self.create_input_node)
-        self.graph.add_node("generate_conversation_title", self.generate_conversation_title)
-        self.graph.add_node("generate_conversation_response", self.create_first_chat)
-
-        self.graph.set_entry_point("create_input_node")
-
-        self.graph.add_edge("create_input_node", "generate_conversation_title")
-        self.graph.add_edge("create_input_node", "generate_conversation_response")
-        self.graph.add_edge("generate_conversation_title", END)
-        self.graph.add_edge("generate_conversation_response", END)
-
-
-    def run_workflow(self, prompt_input):
-        try:
-            self.build_first_chat_workflow()
-            graph = self.graph.compile()
-
-            # draw_lang_graph_flow(graph)
-
-            finish_state = graph.invoke({"message": prompt_input})
-
-            return finish_state
-
-        except Exception as e:
-            print(e)
-
 
     def generate_conversation_title(self, message: dict, model: Optional[str] = "qwen2:0.5b") -> str:
         user_message = message["message"]
@@ -117,8 +76,7 @@ class LlmApi:
         try:
             response = self.title_provider.get_response(prompt_template, model)
             title = response.get('message', user_message[:10 if len(user_message) > 10 else len(user_message)])
-            state = State({'title': title})
-            return state
+            return {'title': title}
         except Exception as e:
             raise e
 
@@ -135,7 +93,7 @@ class LlmApi:
 
         try:
             response = self.provider.get_response(prompt_template, model)
-            return State({"response": response})
+            return {"response": response}
         except Exception as e:
             raise e
 
