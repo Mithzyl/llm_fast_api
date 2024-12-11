@@ -53,6 +53,6 @@ def draw_lang_graph_flow(graph: StateGraph):
         plt.axis('off')  # 关闭坐标轴
         plt.show()
 
-    except Exception:
+    except Exception as e:
         # This requires some extra dependencies and is optional
-        pass
+        print(e)
