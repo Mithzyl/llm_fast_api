@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from typing import Dict, Optional, List
 
+from deprecated.sphinx import deprecated
 # from BCEmbedding import RerankerModel
 # from BCERerank import BCERerank
 from fastapi import Depends, Body
@@ -80,7 +81,7 @@ class LlmApi:
         except Exception as e:
             raise e
 
-
+    @deprecated(reason="Now first chat or continued chat classification has been merged based on the param provided")
     def create_first_chat(self, message: dict, model: Optional[str] = None) -> Dict[str, str]:
         model = model if model else self.model
 
@@ -97,19 +98,21 @@ class LlmApi:
         except Exception as e:
             raise e
 
-    def chat(self, message_history: list, message: dict, model: Optional[str] = None) -> Dict[str, str]:
+    def chat(self, state: dict, model: Optional[str] = None) -> Dict[str, str]:
         model = model if model else self.model
 
-        user_message = message["message"]
+        user_message = state["message"]
+        history_messages = state["history_messages"]
         system_template = "You are an assistant that helps with daily questions, english teaching and coding"
         prompt_template = [
             {"role": "system", "content": system_template}
         ]
 
         try:
-            for history in message_history:
-                history_message = {"role": history.role, "content": history.message}
-                prompt_template.append(history_message)
+            if history_messages:
+                for history in history_messages:
+                    history_message = {"role": history.role, "content": history.message}
+                    prompt_template.append(history_message)
 
             prompt_template.append({"role": "user", "content": user_message})
 
@@ -117,6 +120,7 @@ class LlmApi:
             return {"response": response}
         except Exception as e:
             raise e
+
 
     # def RAG_chat(self, vectorstore, query, searches):
     #     model = self.model

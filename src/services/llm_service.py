@@ -99,7 +99,7 @@ class LlmService:
             user_message = llm_message(id=user_message_primary_id,
                                        message_id=user_message_id,
                                        session_id=conversation_id,
-                                       message=llm_param.get_message(),
+                                       message=new_message,
                                        user_id=user.userid,
                                        create_time=create_time,
                                        update_time=update_time,
@@ -108,7 +108,8 @@ class LlmService:
                                        children_id='')
 
             latest_message.children_id = user_message_id
-            chat_state_response = llm_graph.run_first_chat_workflow(new_message, messages)
+            chat_state = llm_graph.run_first_chat_workflow(new_message, messages)
+            chat_state_response = chat_state['response']
             chat_id = chat_state_response.get('message_id')
             user_message.children_id = chat_id
 

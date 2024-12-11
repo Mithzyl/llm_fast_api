@@ -25,7 +25,7 @@ class LlmGraph:
         self.llm_api = LlmApi(model, temperature)
 
     def __draw_graph(self):
-        draw_lang_graph_flow(self.graph)
+        draw_lang_graph_flow(self.graph.compile())
 
     def create_input_node(self, input_prompt: List[dict]) -> List[dict]:
         return input_prompt
@@ -34,25 +34,31 @@ class LlmGraph:
         # try for lang graph with debugging first
         self.graph.add_node("create_input_node", self.create_input_node)
         self.graph.add_node("generate_conversation_title", self.llm_api.generate_conversation_title)
-        self.graph.add_node("generate_conversation_response", self.llm_api.create_first_chat)
+        self.graph.add_node("generate_conversation_response", self.llm_api.chat)
 
         self.graph.set_entry_point("create_input_node")
 
         self.graph.add_conditional_edges(
             "create_input_node",
             self.__classify_first_chat_tool,
-            {"first_chat": "generate_conversation_title"}
+            {"first_chat": "generate_conversation_title",
+             "continued_chat": "generate_conversation_response"}
         )
         # self.graph.add_edge("create_input_node", "generate_conversation_title")
-        self.graph.add_edge("create_input_node", "generate_conversation_response")
-        self.graph.add_edge("generate_conversation_title", END)
+        # self.graph.add_edge("create_input_node", "generate_conversation_response")
+        self.graph.add_edge("generate_conversation_title", "generate_conversation_response")
         self.graph.add_edge("generate_conversation_response", END)
 
         try:
             graph = self.graph.compile()
+            # self.__draw_graph()
 
             finish_state = graph.invoke({"message": user_message,
                                          "history_messages": history_messages})
+
+            # for event in graph.stream({"message": user_message,
+            #                              "history_messages": history_messages}):
+            #     print(event)
 
             return finish_state
 
@@ -65,6 +71,8 @@ class LlmGraph:
         decide whether this is a first chat or a continued chat
         the first chat will require a title generation edge for langgraph
         """
+        print("running chat classification")
+        print(state)
         return "continued_chat" if state["history_messages"] else "first_chat"
 
 
