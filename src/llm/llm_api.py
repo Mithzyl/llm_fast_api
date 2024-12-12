@@ -81,7 +81,7 @@ class LlmApi:
         except Exception as e:
             raise e
 
-    @deprecated(reason="Now first chat or continued chat classification has been merged based on the param provided")
+    @deprecated(version="1.0", reason="Now first chat or continued chat classification has been merged based on the param provided")
     def create_first_chat(self, message: dict, model: Optional[str] = None) -> Dict[str, str]:
         model = model if model else self.model
 

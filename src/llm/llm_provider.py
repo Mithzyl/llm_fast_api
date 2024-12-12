@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+import time
 from typing import Dict, List, Tuple, Any
 
 from openai import OpenAI
@@ -21,7 +21,7 @@ class OpenAIProvider:
         self.api_key = api_key
         self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
 
-    def get_response(self, prompt: List[Any], model: str = 'qwen2:0.5b') -> dict[str, str | int | datetime | None]:
+    def get_response(self, prompt: List[Any], model: str = 'qwen2:0.5b') -> dict:
 
         try:
             self.completion = self.client.chat.completions.create(
@@ -32,7 +32,7 @@ class OpenAIProvider:
             usage = self.completion.usage
             message_id = generate_md5_id()
 
-            time = datetime.now()
+            create_time = int(time.time())
             response = {'message_id': message_id,
                         'message': self.completion.choices[0].message.content,
                         'role': 'assistant',
@@ -40,7 +40,7 @@ class OpenAIProvider:
                         'completion_token': usage.completion_tokens,
                         'total_token': usage.total_tokens,
                         # 'cost': usage.total_cost,
-                        'create_time': time,
+                        'create_time': create_time,
                         'model': model
                         }
             return response

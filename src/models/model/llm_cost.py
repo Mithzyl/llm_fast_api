@@ -14,4 +14,4 @@ class LlmCost(SQLModel, table=True):
     completion_token: str = Field(default=None)
     total_token: str = Field(default=None)
     cost: str = Field(default=None)
-    create_time: datetime = Field(default=None)
+    create_time: int = Field(default=None)

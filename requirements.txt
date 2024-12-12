@@ -3,16 +3,24 @@ fastapi~=0.115.0
 pymysql
 sqlalchemy~=2.0.35
 alembic
-pyjwt # jwt
+pyjwt~=2.9.0
 apscheduler # cron scheduler
-passlib # bcrypt
+passlib~=1.7.4
 bcrypt # bcrypt
 jinja2 # template engine
 sqlmodel~=0.0.22
 PyYAML~=6.0.2
 pydantic~=2.9.2
 langchain~=0.3.1
-langchain-community
-langchain-openai
-openai
+langchain-community~=0.3.1
+langchain-openai~=0.2.1
+openai~=1.51.0
 starlette~=0.38.6
+langchain-core~=0.3.22
+deprecated~=1.2.15
+langgraph~=0.2.56
+typing_extensions~=4.11.0
+langchain-text-splitters~=0.3.0
+matplotlib~=3.9.3
+requests~=2.32.3
+aioredis~=2.0.1

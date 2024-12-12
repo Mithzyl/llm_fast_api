@@ -20,9 +20,9 @@ class State(TypedDict):
     model: Optional[dict]
 
 class LlmGraph:
-    def __init__(self, model: str, temperature: float):
+    def __init__(self, llm_api: LlmApi):
         self.graph = StateGraph(State)
-        self.llm_api = LlmApi(model, temperature)
+        self.llm_api = llm_api
 
     def __draw_graph(self):
         draw_lang_graph_flow(self.graph.compile())
