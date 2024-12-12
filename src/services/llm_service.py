@@ -35,20 +35,16 @@ class LlmService:
     def get_messages_by_conversation_id(self, conversation_id: str, redis_client: RedisClient) -> Response:
         try:
             # TODO: retrieve cache from redis
-            messages = redis_client.redis.get(conversation_id)
-            if not messages or messages == "[]":
+            messages = redis_client.get_conversation_history(conversation_id)
+            if not messages:
                 messages = (
                     self.session.exec(select(llm_message).filter(llm_message.session_id == conversation_id)
                     .order_by(llm_message.create_time)).all()
                 )
 
                 # convert llm_message object to dict for redis storage
-                json_messages = [message.to_dict() for message in messages]
-                json_messages = json.dumps(json_messages, cls=CustomJsonEncoder)
-                redis_client.redis.set(conversation_id, json_messages)
-            else:
-                json_messages = json.loads(messages)
-                messages = [llm_message.from_dict(message) for message in json_messages]
+                redis_client.set_conversation_by_conversation_id(conversation_id, messages)
+
         except Exception as e:
             # return Response(code="500", message=str(e))
             print("get_messages_by_conversation_id error: ", e)
@@ -354,9 +350,7 @@ class LlmService:
 
             cost = self.cal_cost(chat_state_response, user.userid)
 
-            json_messages = [message.to_dict() for message in new_history_conversations]
-            json_messages = json.dumps(json_messages)
-            redis_client.redis.set(conversation_id, json_messages)
+            redis_client.set_conversation_by_conversation_id(conversation_id, new_history_conversations)
 
             self.add_chat_session(conversation)
             if history_conversations:
