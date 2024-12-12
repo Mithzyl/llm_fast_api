@@ -109,8 +109,6 @@ class LlmService:
                 conversation = None
                 conversation_id = None
 
-
-
             # get the primary id of the last message in the database
             last_message_primary_id = self.session.exec(select(llm_message).order_by(desc(llm_message.id))).first().id
             # message from the user
