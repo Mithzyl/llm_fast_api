@@ -18,19 +18,21 @@ class State(TypedDict):
     response: Optional[dict]
     prompt_template: Optional[dict]
     model: Optional[dict]
+    memory: Optional[str]
+    user_id: str
 
 class LlmGraph:
     def __init__(self, llm_api: LlmApi):
         self.graph = StateGraph(State)
         self.llm_api = llm_api
 
-    def __draw_graph(self):
+    def _draw_graph(self):
         draw_lang_graph_flow(self.graph.compile())
 
-    def create_input_node(self, input_prompt: List[dict]) -> List[dict]:
-        return input_prompt
+    def create_input_node(self, state: dict) -> dict:
+        return state
 
-    def run_first_chat_workflow(self, user_message: str, history_messages: List[str]):
+    def run_first_chat_workflow(self, user_message: str, history_messages: List[str], user_id: str):
         # try for lang graph with debugging first
         self.graph.add_node("create_input_node", self.create_input_node)
         self.graph.add_node("generate_conversation_title", self.llm_api.generate_conversation_title)
@@ -40,7 +42,7 @@ class LlmGraph:
 
         self.graph.add_conditional_edges(
             "create_input_node",
-            self.__classify_first_chat_tool,
+            self._classify_first_chat_tool,
             {"first_chat": "generate_conversation_title",
              "continued_chat": "generate_conversation_response"}
         )
@@ -51,10 +53,11 @@ class LlmGraph:
 
         try:
             graph = self.graph.compile()
-            # self.__draw_graph()
+            # self._draw_graph()
 
             finish_state = graph.invoke({"message": user_message,
-                                         "history_messages": history_messages})
+                                         "history_messages": history_messages,
+                                         "user_id": user_id})
 
             # for event in graph.stream({"message": user_message,
             #                              "history_messages": history_messages}):
@@ -66,7 +69,7 @@ class LlmGraph:
             print(e)
             raise e
 
-    def __classify_first_chat_tool(self, state: State):
+    def _classify_first_chat_tool(self, state: State):
         """
         decide whether this is a first chat or a continued chat
         the first chat will require a title generation edge for langgraph

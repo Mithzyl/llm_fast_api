@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 from deprecated.sphinx import deprecated
 # from BCEmbedding import RerankerModel
@@ -15,13 +15,17 @@ from langchain_core.messages import convert_to_openai_messages
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 
+from dependencies.memory_dependency import get_memory_client
 from llm.llm_provider import OpenAIProvider
+from llm.mem0.mem0_client import CustomMemoryClient
 
 from utils.util import draw_lang_graph_flow
 
 
 class LlmApi:
-    def __init__(self, model: str, temperature: float, base_url: Optional[str] = None,
+    def __init__(self, model: str,
+                 temperature: float,
+                 base_url: Optional[str] = None,
                  api_key: Optional[str] = None):
         self.model = model
         self.temperature = temperature
@@ -63,10 +67,12 @@ class LlmApi:
         self.provider = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
         self.title_provider = OpenAIProvider(base_url=self.title_llm_url, api_key=self.title_api_key)
 
+        self.memory_client = get_memory_client()
+
         # define lang graph workflow
 
-    def generate_conversation_title(self, message: dict, model: Optional[str] = "qwen2:0.5b") -> str:
-        user_message = message["message"]
+    def generate_conversation_title(self, state: dict, model: Optional[str] = "qwen2:0.5b") -> dict[str, Any]:
+        user_message = state["message"]
         system_template = f"""
                             You need to generate a title by using the input in 10 words.
                           """
@@ -82,7 +88,7 @@ class LlmApi:
             raise e
 
     @deprecated(version="1.0", reason="Now first chat or continued chat classification has been merged based on the param provided")
-    def create_first_chat(self, message: dict, model: Optional[str] = None) -> Dict[str, str]:
+    def create_first_chat(self, message: dict, model: Optional[str] = None) -> dict[str, dict]:
         model = model if model else self.model
 
         user_message = message["message"]
@@ -98,18 +104,27 @@ class LlmApi:
         except Exception as e:
             raise e
 
-    def chat(self, state: dict, model: Optional[str] = None) -> Dict[str, str]:
+    def chat(self, state: dict, model: Optional[str] = None) -> dict[str, dict]:
         model = model if model else self.model
 
         user_message = state["message"]
+        user_id = state["user_id"]
         history_messages = state["history_messages"]
         system_template = "You are an assistant that helps with daily questions, english teaching and coding"
         prompt_template = [
             {"role": "system", "content": system_template}
         ]
-
         try:
+            # retrieve memory
+            memories = self.memory_client.get_memory_by_user_id(user_id)
+            if memories:
+                memory_prompt = "Relevant memory information from previous conversations:\n"
+                for memory in memories:
+                    memory_prompt += f"- {memory['memory']}\n"
+                prompt_template.append({"role": "user", "content": memory_prompt})
+
             if history_messages:
+                prompt_template.append({"role": "user", "content": "full chat history records:\n"})
                 for history in history_messages:
                     history_message = {"role": history.role, "content": history.message}
                     prompt_template.append(history_message)
@@ -117,8 +132,14 @@ class LlmApi:
             prompt_template.append({"role": "user", "content": user_message})
 
             response = self.provider.get_response(prompt_template, model)
+
+            # store the memory
+            self.memory_client.add_memory_by_user_id(f"User: {user_message}\nAssistant: {response['message']}",
+                                                     user_id=user_id)
+
             return {"response": response}
         except Exception as e:
+            print(e)
             raise e
 
 

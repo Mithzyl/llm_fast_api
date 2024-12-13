@@ -1,3 +1,0 @@
-"""
-Memory backstage management
-"""

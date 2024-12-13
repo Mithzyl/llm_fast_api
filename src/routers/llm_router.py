@@ -5,6 +5,7 @@ from redis import Redis
 from sqlmodel import Session
 
 from dependencies.llm_dependency import get_llm_service, get_llm_api, get_llm_graph
+from dependencies.memory_dependency import get_memory_client
 from fastapiredis.redis_client import get_redis
 from routers.user_router import security
 from models.param.message_param import ChatCreateParam
@@ -23,8 +24,8 @@ async def create_chat(
         token: HTTPAuthorizationCredentials = Depends(security),
         llm_service = Depends(get_llm_service),
         llm_graph = Depends(get_llm_graph),
-        redis_client = Depends(get_redis),
-) -> Response:
+        redis_client = Depends(get_redis)
+        ) -> Response:
         return llm_service.create_chat(llm_param, token, llm_graph, redis_client)
 
 

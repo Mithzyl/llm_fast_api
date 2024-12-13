@@ -1,5 +1,5 @@
 import os
-from mem0 import Memory
+from mem0 import Memory, MemoryClient
 from openai import api_version
 
 mem0_config = {
@@ -31,16 +31,20 @@ mem0_config = {
 
 
 
-class MemoryClient:
+class CustomMemoryClient:
     def __init__(self, config):
-        self.memory = Memory.from_config(config)
+        self.memory = MemoryClient(api_key="m0-R8i3igXowJLYcNTkr85KLg6mOadM00LJQ3A8VR7V")
 
-    def add_memory_by_user_id(self, message: str, user_id) -> None:
+    def add_memory_by_user_id(self, message: str, user_id: str) -> None:
         # TODO: Integrate into langgraph (get message and user_id from state)
-        self.memory.add(message, user_id, api_version="v1.1")
+        self.memory.add(message, user_id=user_id)
 
     def get_memory_by_user_id(self, user_id) -> dict:
-        return self.memory.get(user_id)
+        try:
+            memories = self.memory.get_all(user_id, version="v1.1")
+            return memories
+        except Exception as e:
+            return None
 
 
 

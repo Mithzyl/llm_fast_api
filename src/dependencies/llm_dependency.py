@@ -3,9 +3,10 @@ from fastapi import Depends
 from sqlmodel import Session
 
 from db.db import get_session
+from dependencies.memory_dependency import get_memory_client
 from llm.llm_api import LlmApi
 from llm.llm_state import LlmGraph
-from llm.mem0.mem0_client import MemoryClient, mem0_config
+from llm.mem0.mem0_client import CustomMemoryClient, mem0_config
 from models.param.message_param import ChatCreateParam
 from services.llm_service import LlmService
 

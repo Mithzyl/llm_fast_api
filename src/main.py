@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import yaml
 from fastapi import FastAPI
 
+from dependencies.memory_dependency import get_memory_client
 from routers import user_router, llm_router
 from db.db import create_db_and_tables, create_db
 from utils.util import set_api_key_environ

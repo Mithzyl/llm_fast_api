@@ -1,18 +1,14 @@
-import json
+
 import time
-from copyreg import pickle
-from datetime import datetime
 from typing import Any, Dict
 
-from fastapi import Depends, HTTPException, FastAPI
+from fastapi import HTTPException, FastAPI
 from fastapi.security import HTTPAuthorizationCredentials
-from langchain_community.chat_models import ChatOpenAI
 from sqlmodel import Session, desc, select
 
-from db.db import get_session
 from fastapiredis.redis_client import RedisClient
-from llm.llm_api import LlmApi
 from llm.llm_state import LlmGraph
+from llm.mem0.mem0_client import CustomMemoryClient
 from models.param.message_param import ChatCreateParam
 from models.response.llm_response import LlmDto
 from models.response.messgage_response import Response
@@ -22,7 +18,6 @@ from models.model.llm_message import llm_message, llm_session
 from models.model.llm_model import LlmModel
 from models.model.user import User
 from utils.authenticate import decode_token
-from utils.custom_json_encoder import CustomJsonEncoder
 from utils.util import generate_md5_id
 
 
@@ -34,7 +29,6 @@ class LlmService:
 
     def get_messages_by_conversation_id(self, conversation_id: str, redis_client: RedisClient) -> Response:
         try:
-            # TODO: retrieve cache from redis
             messages = redis_client.get_conversation_history(conversation_id)
             if not messages:
                 messages = (
@@ -71,13 +65,17 @@ class LlmService:
 
         return Response(code="200", message=session_dto)
 
-    def create_chat(self, llm_param: ChatCreateParam, token: HTTPAuthorizationCredentials,
-                    llm_graph: LlmGraph, redis_client: RedisClient) -> Response:
+    def create_chat(self,
+                    llm_param: ChatCreateParam,
+                    token: HTTPAuthorizationCredentials,
+                    llm_graph: LlmGraph,
+                    redis_client: RedisClient) -> Response:
         # 1. generate a session_id
         # 2. Add initial system message of llm
         # 3. create langchain prompt template
         # 4. call LLM API
         # 5. save message and the session
+        # TODO: Add memory support
 
         # llm = get_llm_api(message, message.temperature)
         payload = decode_token(token)
@@ -129,7 +127,7 @@ class LlmService:
                                        children_id='')
 
             # llm api call
-            chat_state = llm_graph.run_first_chat_workflow(new_user_message, history_conversations)
+            chat_state = llm_graph.run_first_chat_workflow(new_user_message, history_conversations, user.userid)
             chat_state_response = chat_state['response']
             chat_id = chat_state_response.get('message_id')
             user_message.children_id = chat_id
@@ -211,18 +209,6 @@ class LlmService:
         except Exception as e:
             self.session.rollback()
             raise Exception(e)
-
-    def commit_chat_record(self, conversation: Any, last_message: Any,
-                           user_message: Any, ai_message: Any, cost: Any) -> None:
-        """
-        commit the records changes of one dialog to database
-        """
-
-        self.add_chat_session(conversation)
-        self.add_chat_session(last_message)
-        self.add_chat_session(user_message)
-        self.add_chat_session(ai_message)
-        self.add_chat_session(cost)
 
     def cal_cost(self, chat_state_response: dict, user_id: str) -> LlmCost:
         create_time = chat_state_response.get('create_time')
