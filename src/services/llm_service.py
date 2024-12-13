@@ -179,7 +179,8 @@ class LlmService:
 
             cost = self.cal_cost(chat_state_response, user.userid)
 
-            redis_client.set_conversation_by_conversation_id(conversation_id, new_history_conversations)
+            # memory sql saving
+
 
             self.add_chat_session(conversation)
             if history_conversations:
@@ -187,6 +188,8 @@ class LlmService:
             self.add_chat_session(user_message)
             self.add_chat_session(ai_message)
             self.add_chat_session(cost)
+
+            redis_client.set_conversation_by_conversation_id(conversation_id, new_history_conversations)
 
         except Exception as e:
             print(e)

@@ -18,7 +18,7 @@ class State(TypedDict):
     response: Optional[dict]
     prompt_template: Optional[dict]
     model: Optional[dict]
-    memory: Optional[str]
+    memory: Optional[dict]
     user_id: str
 
 class LlmGraph:

@@ -82,7 +82,8 @@ class LlmApi:
         ]
         try:
             response = self.title_provider.get_response(prompt_template, model)
-            title = response.get('message', user_message[:10 if len(user_message) > 10 else len(user_message)])
+            title = response.get('message'[:10],
+                                 user_message[:10 if len(user_message) > 10 else len(user_message)])
             return {'title': title}
         except Exception as e:
             raise e
@@ -116,7 +117,7 @@ class LlmApi:
         ]
         try:
             # retrieve memory
-            memories = self.memory_client.get_memory_by_user_id(user_id)
+            memories = self.memory_client.search_memory_by_user_id(user_message, user_id)
             if memories:
                 memory_prompt = "Relevant memory information from previous conversations:\n"
                 for memory in memories:
@@ -134,10 +135,11 @@ class LlmApi:
             response = self.provider.get_response(prompt_template, model)
 
             # store the memory
-            self.memory_client.add_memory_by_user_id(f"User: {user_message}\nAssistant: {response['message']}",
+            memory_response = self.memory_client.add_memory_by_user_id(f"User: {user_message}\nAssistant: {response['message']}",
                                                      user_id=user_id)
 
-            return {"response": response}
+            return {"response": response,
+                    "memory": memory_response}
         except Exception as e:
             print(e)
             raise e

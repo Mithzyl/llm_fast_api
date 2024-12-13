@@ -1,4 +1,6 @@
 import os
+from typing import Dict, Any
+
 from mem0 import Memory, MemoryClient
 from openai import api_version
 
@@ -33,15 +35,27 @@ mem0_config = {
 
 class CustomMemoryClient:
     def __init__(self, config):
-        self.memory = MemoryClient(api_key="m0-R8i3igXowJLYcNTkr85KLg6mOadM00LJQ3A8VR7V")
+        # self.memory = MemoryClient("m0-R8i3igXowJLYcNTkr85KLg6mOadM00LJQ3A8VR7V")
+        self.memory = Memory.from_config(mem0_config)
 
-    def add_memory_by_user_id(self, message: str, user_id: str) -> None:
+    def add_memory_by_user_id(self, message: str, user_id: str) -> dict[str, Any]:
         # TODO: Integrate into langgraph (get message and user_id from state)
-        self.memory.add(message, user_id=user_id)
+        memory = self.memory.add(message, user_id=user_id)
+        return memory
 
-    def get_memory_by_user_id(self, user_id) -> dict:
+    def get_all_memory_by_user_id(self, user_id) -> dict:
         try:
-            memories = self.memory.get_all(user_id, version="v1.1")
+            memories = self.memory.get_all(user_id=user_id)
+            return memories
+        except Exception as e:
+            return None
+
+    def search_memory_by_user_id(self, message: str, user_id: str) -> dict:
+        """
+        search relevant memory of a conversation by user_id
+        """
+        try:
+            memories = self.memory.search(query=message, user_id=user_id)
             return memories
         except Exception as e:
             return None
