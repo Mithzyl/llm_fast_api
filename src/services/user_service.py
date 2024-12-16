@@ -2,8 +2,10 @@ import uuid
 from typing import List
 
 import jwt
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from jwt import InvalidTokenError
 from passlib.hash import bcrypt
+from requests import HTTPError
 from sqlmodel import Session, desc, select
 
 from db.db import get_session
@@ -32,7 +34,7 @@ class UserService:
     def login(self, login_request: UserLogin) -> Response:
         # query user, not exist return error
         user = self.session.exec(select(User).where(User.email == login_request.email)).first()
-        print(user)
+        # print(user)
         if not user:
             return Response(code="500", message="no such user")
 
@@ -80,20 +82,32 @@ class UserService:
 
         # 3. TODO: Auto login after register
 
-    def get_me(self, token: HTTPAuthorizationCredentials) -> Response:
+    def get_me(self, token: str) -> Response:
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
         try:
             decode_payload = decode_token(token)
             email = decode_payload.get('email', None)
 
-            user = self.session.exec(User.where(User.email == email)).first()
-            dto = UserDTO.model_validate(user)
+            if not email:
+                raise credentials_exception
+
+            user = self.session.exec(select(User).where(User.email == email)).first()
+
+            if user is None:
+                raise credentials_exception
+            user_response = UserDTO.model_validate(user)
             # TODO: redirect
 
-            return Response(code="200", message=dto)
+            return Response(code="200", message=user_response)
 
-        except Exception as e:
+        except InvalidTokenError as e:
             # TODO: redirect
-            return Response(code="500", message=str(e))
+            raise credentials_exception
+            # return Response(code="500", message=str(e))
 
     def get_models(self) -> Response:
         models = self.session.exec(select(LlmModel)).all()

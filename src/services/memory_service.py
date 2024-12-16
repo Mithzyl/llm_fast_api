@@ -14,3 +14,13 @@ class MemoryService:
         memories = self._memory_client.get_all_memory_by_user_id(user_id=user_id)
 
         return Response(code="200", message=memories)
+
+    def get_memory_history_by_memory_id(self, memory_id: str) -> Response:
+        histories = self._memory_client.memory.history(memory_id=memory_id)
+
+
+        return Response(code="200", message=histories)
+
+    def get_all_memory(self):
+        return self._memory_client.memory.get_all()
+

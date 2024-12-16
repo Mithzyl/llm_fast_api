@@ -7,7 +7,7 @@ from sqlmodel import Session
 from dependencies.llm_dependency import get_llm_service, get_llm_api, get_llm_graph
 from dependencies.memory_dependency import get_memory_client
 from fastapiredis.redis_client import get_redis
-from routers.user_router import security
+from routers.user_router import security, oauth2_scheme
 from models.param.message_param import ChatCreateParam
 from models.response.messgage_response import Response
 from services.llm_service import LlmService
@@ -21,7 +21,7 @@ llm_router = APIRouter(
 @llm_router.post("/chat", response_model=Response)
 async def create_chat(
         llm_param: ChatCreateParam = Body(),
-        token: HTTPAuthorizationCredentials = Depends(security),
+        token: str = Depends(oauth2_scheme),
         llm_service = Depends(get_llm_service),
         llm_graph = Depends(get_llm_graph),
         redis_client = Depends(get_redis)

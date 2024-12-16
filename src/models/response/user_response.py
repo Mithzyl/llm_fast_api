@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class UserDTO(BaseModel):
     name: str
-    email: str
+    userid: str
 
     class Config:
         from_attributes = True

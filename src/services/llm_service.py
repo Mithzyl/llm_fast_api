@@ -28,6 +28,7 @@ class LlmService:
         self.session = session
 
     def get_messages_by_conversation_id(self, conversation_id: str, redis_client: RedisClient) -> Response:
+        messages = []
         try:
             messages = redis_client.get_conversation_history(conversation_id)
             if not messages:
@@ -67,7 +68,7 @@ class LlmService:
 
     def create_chat(self,
                     llm_param: ChatCreateParam,
-                    token: HTTPAuthorizationCredentials,
+                    token: str,
                     llm_graph: LlmGraph,
                     redis_client: RedisClient) -> Response:
         # 1. generate a session_id

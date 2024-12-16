@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
+from passlib.exc import InvalidTokenError
 
 from passlib.hash import bcrypt
 
@@ -26,14 +27,7 @@ def authenticate_user(user, password) -> str:
         )
 
 
-def decode_token(token: HTTPAuthorizationCredentials) -> dict:
-    credential = token.credentials
-    decode_payload = decode_jwt(credential)
-    email = decode_payload.get('email', None)
-    if email is None:
-        raise HTTPException(
-            status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = 'Token incorrect'
-        )
+def decode_token(token: str) -> dict:
+    decode_payload = decode_jwt(token)
 
     return decode_payload

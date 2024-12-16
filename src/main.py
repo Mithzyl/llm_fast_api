@@ -14,7 +14,7 @@ async def lifespan(app: FastAPI):
     print("Application Startup")
     try:
         set_api_key_environ("./key.json")
-        create_db_and_tables()
+        # create_db_and_tables()
     except Exception as e:
         db_name = "test.db"
         print(e)
@@ -32,6 +32,7 @@ origins = [
     "http://localhost",
     "http://localhost:8000",
     "http://localhost:3000",
+    "*"
 
 ]
 

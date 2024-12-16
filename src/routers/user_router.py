@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
 from sqlalchemy.testing.pickleable import User
 from sqlmodel import Session
 from starlette.responses import JSONResponse
@@ -16,6 +16,7 @@ user_router = APIRouter(
 )
 
 security = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 
 
 @user_router.get("/")
@@ -24,13 +25,14 @@ async def get_users(user_service: UserService = Depends(get_user_service)):
 
 
 @user_router.get("/me")
-async def get_me(token: HTTPAuthorizationCredentials = Depends(security),
+async def get_me(token: str = Depends(oauth2_scheme),
                  user_service: UserService = Depends(get_user_service)):
     return user_service.get_me(token)
 
 
 @user_router.post("/login", response_model=Response)
-async def login(login_request: UserLogin, user_service: UserService = Depends(get_user_service)):
+async def login(login_request: UserLogin,
+                user_service: UserService = Depends(get_user_service)) -> str:
     return user_service.login(login_request)
 
 

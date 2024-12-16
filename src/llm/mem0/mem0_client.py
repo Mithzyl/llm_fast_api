@@ -26,7 +26,7 @@ mem0_config = {
         "config": {
             "model": "nomic-embed-text:latest",
             # Alternatively, you can use "snowflake-arctic-embed:latest"
-            "ollama_base_url": "http://localhost:11434",
+            "ollama_base_url": "localhost:11434",
         },
     },
 }
