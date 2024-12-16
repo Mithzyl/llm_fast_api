@@ -35,7 +35,7 @@ mem0_config = {
 
 class CustomMemoryClient:
     def __init__(self, config):
-        # self.memory = MemoryClient("m0-R8i3igXowJLYcNTkr85KLg6mOadM00LJQ3A8VR7V")
+
         self.memory = Memory.from_config(mem0_config)
 
     def add_memory_by_user_id(self, message: str, user_id: str) -> dict[str, Any]:
@@ -63,8 +63,6 @@ class CustomMemoryClient:
 
 
 if __name__ == "__main__":
-
-    os.environ["OPENAI_API_KEY"] = "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"
     # Initialize Memory with the configuration
     m = Memory.from_config(mem0_config)
     # Add a memory
