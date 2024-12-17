@@ -28,6 +28,15 @@ class LlmService:
         self.session = session
 
     def get_messages_by_conversation_id(self, conversation_id: str, redis_client: RedisClient) -> Response:
+        """
+        get the chat history of a conversation
+        Args:
+            conversation_id: id of a conversation session
+            redis_client: client instance that interacts with redis db
+
+        Returns:
+            chat history of a conversation
+        """
         messages = []
         try:
             messages = redis_client.get_conversation_history(conversation_id)
@@ -41,17 +50,34 @@ class LlmService:
                 redis_client.set_conversation_by_conversation_id(conversation_id, messages)
 
         except Exception as e:
-            # return Response(code="500", message=str(e))
+            raise e
             print("get_messages_by_conversation_id error: ", e)
 
         return Response(code="200", message=messages)
 
     def get_message_by_message_id(self, message_id: object) -> Response:
+        """
+        get message content given a message id
+        Args:
+            message_id: id of a message
+
+        Returns:
+            message content given a message id
+        """
         message = self.session.exec(select(llm_message).filter(llm_message.id == message_id)).first()
 
         return Response(code="200", message=message)
 
     def get_sessions_by_user_id(self, user_id) -> Response:
+        """
+        get conversation session of one user
+        # TODO: filter by time (e.g. recent 30 conversations or one month)
+        Args:
+            user_id: id of a user
+
+        Returns:
+            conversation sessions
+        """
         try:
             sessions = (self.session.exec(select(llm_session).filter(llm_session.user_id == user_id)
                         .order_by(desc(llm_session.update_time))).all())
@@ -71,14 +97,24 @@ class LlmService:
                     token: str,
                     llm_graph: LlmGraph,
                     redis_client: RedisClient) -> Response:
-        # 1. generate a session_id
-        # 2. Add initial system message of llm
-        # 3. create langchain prompt template
-        # 4. call LLM API
-        # 5. save message and the session
-        # TODO: Add memory support
+        """
+        accepts passed param and call llm api, also interacts with db, redis db after successfully getting a llm response
+        pipeline:
+        1. decode the jwt token and validate the user
+        2. get chat history of the conversation if a conversation id is provided
+        3. call llm api for langgraph chat workflow
+        4. calculate and log the cost of this interaction
+        5. upload the response to db and redis(experimental)
+        Args:
+            llm_param: payload to call llm api
+            token: jwt token for user validation
+            llm_graph: injection of langgraph workflow
+            redis_client: injection of client instance that interacts with redis db
 
-        # llm = get_llm_api(message, message.temperature)
+        Returns:
+            OpenAI-alike response for new chat or continued chat
+        """
+
         payload = decode_token(token)
         email = payload.get("email")
         user = self.session.exec(
@@ -199,12 +235,6 @@ class LlmService:
         conversation_response = LlmDto(conversation_id=conversation_id, content=chat_state_response, model=model)
         return Response(code="200", message=conversation_response)
 
-    def post_message(self, message: ChatCreateParam, token: HTTPAuthorizationCredentials):
-        # 1. get messages from the session
-        # 2. get parent message info
-        # 3. get llm response and construct new message
-        parent_message_id = message.get_message_id()
-
     def add_chat_session(self, record: Any) -> None:
         try:
             self.session.add(record)
@@ -215,6 +245,16 @@ class LlmService:
             raise Exception(e)
 
     def cal_cost(self, chat_state_response: dict, user_id: str) -> LlmCost:
+        """
+        logs the cost of each api call
+        # TODO: calculate the cost using returned token amount instead of logging returned cost directly
+        Args:
+            chat_state_response: response dict containing token counts and cost
+            user_id: id of the user
+
+        Returns:
+            LlmCost object for database commits
+        """
         create_time = chat_state_response.get('create_time')
         last_cost = self.session.exec(select(LlmCost).order_by(desc(LlmCost.id))).first()
         if not last_cost:
@@ -239,11 +279,16 @@ class LlmService:
         return message_cost
 
     def get_model_list(self) -> Response:
+        """
+        Returns:
+            model list
+        """
         try:
             models = self.session.exec(select(LlmModel)).all()
 
         except Exception as e:
-            return Response(code="500", message=e)
+            raise e
+            # return Response(code="500", message=e)
         return Response(code="200", message=models)
 
 

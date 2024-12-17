@@ -129,7 +129,7 @@ class LlmApi:
         user_message = state["message"]
         user_id = state["user_id"]
         history_messages = state["history_messages"]
-        system_template = "You are an assistant that helps with daily questions, english teaching and coding"
+        system_template = "You are an assistant that helps with daily questions, english, math and coding"
         prompt_template = [
             {"role": "system", "content": system_template}
         ]
@@ -137,23 +137,26 @@ class LlmApi:
             # retrieve memory
             memories = self.memory_client.search_memory_by_user_id(user_message, user_id)
             if memories:
-                memory_prompt = "Relevant memory information from previous conversations:\n"
+                memory_prompt = "Relevant memory information from previous conversations:\n [MEMORY_BEGIN]"
                 for memory in memories:
                     memory_prompt += f"- {memory['memory']}\n"
+                memory_prompt += "[MEMORY_END]"
                 prompt_template.append({"role": "user", "content": memory_prompt})
 
             if history_messages:
-                prompt_template.append({"role": "user", "content": "full chat history records:\n"})
+                prompt_template.append({"role": "user", "content": "full chat history records:\n [HISTORY_BEGIN]"})
                 for history in history_messages:
                     history_message = {"role": history.role, "content": history.message}
                     prompt_template.append(history_message)
+                prompt_template.append({"role": "user", "content": "\n [HISTORY_END]"})
 
-            prompt_template.append({"role": "user", "content": user_message})
+            prompt_template.append({"role": "user", "content": f"question: {user_message}"})
 
             response = self.provider.get_response(prompt_template, model)
 
             # store the memory
-            memory_response = self.memory_client.add_memory_by_user_id(f"User: {user_message}\nAssistant: {response['message']}",
+            memory_response = self.memory_client.add_memory_by_user_id(f"User: {user_message}\n"
+                                                                       f"Assistant: {response['message']}",
                                                      user_id=user_id)
 
             return {"response": response,
@@ -163,86 +166,86 @@ class LlmApi:
             raise e
 
 
-    def RAG_chat(self, vectorstore, query, searches):
-        model = self.model
-        llm = ChatOpenAI(model=model, temperature=self.temperature, api_key=[])
-        PROMPT_TEMPLATE = """
-        Human: You are an AI assistant, and provides answers to questions by using fact based and statistical information when possible.
-        Use the following pieces of information to provide a concise answer to the question enclosed in <question> tags.
-        The response must restrictly follow the limitations, e.g. if a condition (e.g. country) is provided,
-        only give answers with the given condition.
-
-
-        <context>
-        {context}
-        </context>
-
-        <question>
-        {question}
-        </question>
-        Sometimes the question is implicit to retrieve information from the context, if so, try to analyze the information in the context
-        and see if it meets the goal.
-
-
-        The response should be specific and use statistics or numbers when possible.
-
-        Assistant:"""
-
-        # Create a PromptTemplate instance with the defined template and input variables
-        prompt = PromptTemplate(
-            template=PROMPT_TEMPLATE, input_variables=["context", "question", "country"]
-        )
-        # Convert the vector store to a retriever
-        retriever = vectorstore.as_retriever(search_kwargs={"score_threshold": 0.5,
-                                                            "k": 50})
-
-
-        # Define a function to format the retrieved documents
-        def format_docs(docs):
-            return "\n\n".join(doc for doc in docs.get('rerank_passages', []))
-
-        def format_rerank(docs):
-            return "\n\n".join(doc.page_content for doc in docs)
-
-        def inspect(state):
-            for k, v in state.items():
-                print(v)
-            return state
-
-        ranker_args = {'model': 'ms-marco-MultiBERT-L-12', 'top_n': 10}
-        ranker = Ranker(model_name='ms-marco-MultiBERT-L-12')
-
-        reranker_args = {'top_n': 5, 'device': 'cpu'}  # 修改为本地路径
-        reranker = RerankerModel(model_name_or_path="maidalun1020/bce-reranker-base_v1")
-        bce_reranker = None
-        compressor = FlashrankRerank(client=ranker, **ranker_args)
-
-        compression_retriever = ContextualCompressionRetriever(
-            base_compressor=bce_reranker, base_retriever=retriever
-        )
-
-        sentence_pairs = [[query, passage.page_content] for passage in searches]
-        # scores = reranker.compute_score(sentence_pairs)
-        # rerank_results = reranker.rerank(query, [passage.page_content for passage in searches])
-
-        # reranked_content = format_docs(rerank_results)
-
-
-        rag_chain = (
-                {"context": compression_retriever | format_rerank, "question": RunnablePassthrough()}
-                | RunnableLambda(inspect)
-                | prompt
-                | llm
-                | StrOutputParser()
-        )
-
-        # rag_chain.get_graph().print_ascii()
-
-        # Invoke the RAG chain with a specific question and retrieve the response
-        # res = rag_chain.invoke({"context": reranked_content, "question": query})
-
-        res = rag_chain.invoke(query)
-        return res
+    # def RAG_chat(self, vectorstore, query, searches):
+    #     model = self.model
+    #     llm = ChatOpenAI(model=model, temperature=self.temperature, api_key=[])
+    #     PROMPT_TEMPLATE = """
+    #     Human: You are an AI assistant, and provides answers to questions by using fact based and statistical information when possible.
+    #     Use the following pieces of information to provide a concise answer to the question enclosed in <question> tags.
+    #     The response must restrictly follow the limitations, e.g. if a condition (e.g. country) is provided,
+    #     only give answers with the given condition.
+    #
+    #
+    #     <context>
+    #     {context}
+    #     </context>
+    #
+    #     <question>
+    #     {question}
+    #     </question>
+    #     Sometimes the question is implicit to retrieve information from the context, if so, try to analyze the information in the context
+    #     and see if it meets the goal.
+    #
+    #
+    #     The response should be specific and use statistics or numbers when possible.
+    #
+    #     Assistant:"""
+    #
+    #     # Create a PromptTemplate instance with the defined template and input variables
+    #     prompt = PromptTemplate(
+    #         template=PROMPT_TEMPLATE, input_variables=["context", "question", "country"]
+    #     )
+    #     # Convert the vector store to a retriever
+    #     retriever = vectorstore.as_retriever(search_kwargs={"score_threshold": 0.5,
+    #                                                         "k": 50})
+    #
+    #
+    #     # Define a function to format the retrieved documents
+    #     def format_docs(docs):
+    #         return "\n\n".join(doc for doc in docs.get('rerank_passages', []))
+    #
+    #     def format_rerank(docs):
+    #         return "\n\n".join(doc.page_content for doc in docs)
+    #
+    #     def inspect(state):
+    #         for k, v in state.items():
+    #             print(v)
+    #         return state
+    #
+    #     ranker_args = {'model': 'ms-marco-MultiBERT-L-12', 'top_n': 10}
+    #     ranker = Ranker(model_name='ms-marco-MultiBERT-L-12')
+    #
+    #     reranker_args = {'top_n': 5, 'device': 'cpu'}  # 修改为本地路径
+    #     reranker = RerankerModel(model_name_or_path="maidalun1020/bce-reranker-base_v1")
+    #     bce_reranker = None
+    #     compressor = FlashrankRerank(client=ranker, **ranker_args)
+    #
+    #     compression_retriever = ContextualCompressionRetriever(
+    #         base_compressor=bce_reranker, base_retriever=retriever
+    #     )
+    #
+    #     sentence_pairs = [[query, passage.page_content] for passage in searches]
+    #     # scores = reranker.compute_score(sentence_pairs)
+    #     # rerank_results = reranker.rerank(query, [passage.page_content for passage in searches])
+    #
+    #     # reranked_content = format_docs(rerank_results)
+    #
+    #
+    #     rag_chain = (
+    #             {"context": compression_retriever | format_rerank, "question": RunnablePassthrough()}
+    #             | RunnableLambda(inspect)
+    #             | prompt
+    #             | llm
+    #             | StrOutputParser()
+    #     )
+    #
+    #     # rag_chain.get_graph().print_ascii()
+    #
+    #     # Invoke the RAG chain with a specific question and retrieve the response
+    #     # res = rag_chain.invoke({"context": reranked_content, "question": query})
+    #
+    #     res = rag_chain.invoke(query)
+    #     return res
 
 
 
