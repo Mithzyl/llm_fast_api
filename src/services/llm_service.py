@@ -128,7 +128,7 @@ class LlmService:
                                        children_id='')
 
             # llm api call
-            chat_state = llm_graph.run_first_chat_workflow(new_user_message, history_conversations, user.userid)
+            chat_state = llm_graph.run_chat_workflow(new_user_message, history_conversations, user.userid)
             chat_state_response = chat_state['response']
             chat_id = chat_state_response.get('message_id')
             user_message.children_id = chat_id

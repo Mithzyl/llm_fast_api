@@ -1,20 +1,20 @@
-from abc import ABC, abstractmethod
-import time
-from typing import Dict, List, Tuple, Any
+from time import time
+from typing import List, Any
 
 from openai import OpenAI
 
 from utils.util import generate_md5_id
 
 
-class LLMProvider(ABC):
-    @abstractmethod
-    def generate_response(self) -> str:
-        pass
-
-
 class OpenAIProvider:
     def __init__(self, base_url: str, temperature: float = 0.8, api_key: str = None):
+        """
+        Wrapper that interacts with OpenAI's API
+        Args:
+            base_url: api url
+            temperature: controls the diversity and randomness
+            api_key: the api key for different LLM api
+        """
         self.completion = None
         self.base_url = base_url
         self.temperature = temperature
@@ -22,6 +22,16 @@ class OpenAIProvider:
         self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
 
     def get_response(self, prompt: List[Any], model: str = 'qwen2:0.5b') -> dict:
+        """
+        creates a completion interaction
+        Args:
+            prompt: prompt input
+            model: model to call
+
+        Returns:
+            dict containing information of this round of interaction
+
+        """
 
         try:
             self.completion = self.client.chat.completions.create(
@@ -32,7 +42,7 @@ class OpenAIProvider:
             usage = self.completion.usage
             message_id = generate_md5_id()
 
-            create_time = int(time.time())
+            create_time = int(time())
             response = {'message_id': message_id,
                         'message': self.completion.choices[0].message.content,
                         'role': 'assistant',

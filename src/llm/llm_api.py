@@ -72,6 +72,15 @@ class LlmApi:
         # define lang graph workflow
 
     def generate_conversation_title(self, state: dict, model: Optional[str] = "qwen2:0.5b") -> dict[str, Any]:
+        """
+
+        Args:
+            state: langgraph state
+            model: selected model, now using a 0.5b qwen model which can handle chinese for fast title generation
+
+        Returns:
+            state dict containing the generated title
+        """
         user_message = state["message"]
         system_template = f"""
                             You need to generate a title by using the input in 10 words.
@@ -106,6 +115,15 @@ class LlmApi:
             raise e
 
     def chat(self, state: dict, model: Optional[str] = None) -> dict[str, dict]:
+        """
+
+        Args:
+            state: langgraph state
+            model: selected model
+
+        Returns:
+            state dict after adding the response from AI and extracted memory
+        """
         model = model if model else self.model
 
         user_message = state["message"]
