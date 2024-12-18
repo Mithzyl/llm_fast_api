@@ -87,15 +87,16 @@ class LlmGraph:
 
         try:
             graph = self.graph.compile()
-            # self._draw_graph()
+
+            # # Use the astream method for streaming
+            # async for event in graph.astream({"message": user_message,
+            #                                   "history_messages": history_messages,
+            #                                   "user_id": user_id}):
+            #     print(event)
 
             finish_state = graph.invoke({"message": user_message,
                                          "history_messages": history_messages,
                                          "user_id": user_id})
-
-            # for event in graph.stream({"message": user_message,
-            #                              "history_messages": history_messages}):
-            #     print(event)
 
             return finish_state
 

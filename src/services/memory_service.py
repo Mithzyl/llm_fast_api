@@ -1,3 +1,5 @@
+from http.client import HTTPException
+
 from sqlmodel import Session
 
 from llm.mem0.mem0_client import CustomMemoryClient
@@ -23,4 +25,11 @@ class MemoryService:
 
     def get_all_memory(self):
         return self._memory_client.memory.get_all()
+
+    def delete_memory_by_memory_id(self, memory_id) -> Response:
+        try:
+            messages = self._memory_client.memory.delete(memory_id=memory_id)
+            return Response(code="200", message=messages)
+        except Exception as e:
+            raise HTTPException(e)
 
