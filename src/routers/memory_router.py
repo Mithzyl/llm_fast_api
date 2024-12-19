@@ -12,10 +12,17 @@ memory_router = APIRouter(
     tags=["memory"],
 )
 
+
+@memory_router.get("/conversation/{conversation_id}", response_model=Response)
+async def get_memory_by_user_id(conversation_id: str,
+                                memory_service: MemoryService = Depends(get_memory_service)) -> Response:
+    return memory_service.get_memories_by_conversation_id(conversation_id)
+
 @memory_router.get("/users/{user_id}", response_model=Response)
 async def get_memory_by_user_id(user_id: str,
                                 memory_service: MemoryService = Depends(get_memory_service)) -> Response:
     return memory_service.get_memories_by_user_id(user_id)
+
 
 @memory_router.get("{/memory_id}", response_model=Response)
 async def get_memory_history(memory_id: str,

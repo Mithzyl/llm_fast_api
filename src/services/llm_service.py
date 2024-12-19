@@ -125,7 +125,7 @@ class LlmService:
 
         conversation_id = llm_param.get_conversation_id()
         try:
-            if conversation_id:
+            if conversation_id: # continued conversation
                 history_conversations = self.get_messages_by_conversation_id(conversation_id, redis_client).get_message()
 
                 # get the conversation session
@@ -139,10 +139,11 @@ class LlmService:
                                                .where(llm_message.session_id == conversation_id)
                                                .order_by(desc(llm_message.create_time))).first()
             else:
+                # new conversation
                 history_conversations = None
                 conversation_latest_message = None
                 conversation = None
-                conversation_id = None
+                conversation_id = generate_md5_id()
 
             # get the primary id of the last message in the database
             last_message_primary_id = self.session.exec(select(llm_message).order_by(desc(llm_message.id))).first().id
@@ -164,7 +165,10 @@ class LlmService:
                                        children_id='')
 
             # llm api call
-            chat_state = llm_graph.run_chat_workflow(new_user_message, history_conversations, user.userid)
+            chat_state = llm_graph.run_chat_workflow(conversation_id,
+                                                     new_user_message,
+                                                     history_conversations,
+                                                     user.userid)
             chat_state_response = chat_state['response']
             chat_id = chat_state_response.get('message_id')
             user_message.children_id = chat_id
@@ -195,9 +199,6 @@ class LlmService:
                     last_conversation_id = last_conversation.id
 
                 conversation_primary_id = last_conversation_id + 1
-                conversation_id = generate_md5_id()
-                user_message.session_id = conversation_id
-                ai_message.session_id = conversation_id
 
                 conversation = llm_session(
                     id=conversation_primary_id,

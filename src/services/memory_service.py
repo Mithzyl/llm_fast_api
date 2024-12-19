@@ -22,6 +22,12 @@ class MemoryService:
 
 
         return Response(code="200", message=histories)
+    
+    def get_memories_by_conversation_id(self, conversation_id: str) -> Response:
+        histories = self._memory_client.get_all_memory_by_conversation_id(conversation_id=conversation_id)
+
+
+        return Response(code="200", message=histories)
 
     def get_all_memory(self):
         return self._memory_client.memory.get_all()

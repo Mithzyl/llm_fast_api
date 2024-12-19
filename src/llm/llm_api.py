@@ -23,6 +23,10 @@ from utils.util import draw_lang_graph_flow
 
 
 class LlmApi:
+    """
+    This class is responsible for managing execution functions within lang graph nodes,
+    each function accepts state and uses some props for its own logic
+    """
     def __init__(self, model: str,
                  temperature: float,
                  base_url: Optional[str] = None,
@@ -116,7 +120,37 @@ class LlmApi:
 
     def chat(self, state: dict, model: Optional[str] = None) -> dict[str, dict]:
         """
+        Args:
+            state: langgraph state
+            model: selected model
 
+        Returns:
+            state dict after adding the response from AI and extracted memory
+        """
+        model = model if model else self.model
+
+        user_message = state["message"]
+        user_id = state["user_id"]
+        conversation_id = state["conversation_id"]
+        prompt_template = state["prompt_template"]
+
+        try:
+
+            response = self.provider.get_response(prompt_template, model)
+
+            # store the memory
+            conversation_memory = self.memory_client.add_memory_by_conversation_id(f"User: {user_message}\n Assistant: {response['message']}",
+                                                                   conversation_id=conversation_id)
+            user_memory = self.memory_client.add_memory_by_user_id(f"User: {user_message}\n",
+                                                                    user_id=user_id)
+
+            return {"response": response}
+        except Exception as e:
+            print(e)
+            raise e
+
+    def chat1(self, state: dict, model: Optional[str] = None) -> dict[str, dict]:
+        """
         Args:
             state: langgraph state
             model: selected model
@@ -129,18 +163,54 @@ class LlmApi:
         user_message = state["message"]
         user_id = state["user_id"]
         history_messages = state["history_messages"]
-        system_template = "You are an assistant that helps with daily questions, english, math and coding"
+        conversation_id = state["conversation_id"]
+
+        system_template = f"""
+                            You are an assistant that helps with daily questions, english, math and coding\n
+                            You also may get memories or chat histories input,
+                            please respond to the question from the user.\n
+                            Input:\n
+                            [USER_MEMORY_BEGIN] (if any)\n
+                            some key user figures that can be helpful for this round of conversation\n
+                            [USER_MEMORY_END] (if any)\n
+
+                            [CONVERSATION_MEMORY_BEGIN] (if any)\n
+                            some key inference from previous history messages that
+                            can be helpful for this round of conversation\n
+                            [CONVERSATION_MEMORY_END] (if any)\n
+
+                            [HISTORY_BEGIN]\n
+                            histories messages containing both user questions and your response\n
+                            [HISTORY_END]\n
+                            user's new query
+                           """
         prompt_template = [
             {"role": "system", "content": system_template}
         ]
         try:
             # retrieve memory
-            memories = self.memory_client.search_memory_by_user_id(user_message, user_id)
-            if memories:
-                memory_prompt = "Relevant memory information from previous conversations:\n [MEMORY_BEGIN]"
-                for memory in memories:
+            user_memory = self.memory_client.search_memory_by_user_id(user_message, user_id)
+            if user_memory:
+                memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
+                for memory in user_memory:
                     memory_prompt += f"- {memory['memory']}\n"
-                memory_prompt += "[MEMORY_END]"
+                memory_prompt += "[USER_MEMORY_END]"
+                prompt_template.append({"role": "user", "content": memory_prompt})
+
+            conversation_memory = self.memory_client.search_memory_by_conversation_id(user_message,
+                                                                                      conversation_id=conversation_id)
+            if user_memory:
+                memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
+                for memory in user_memory:
+                    memory_prompt += f"- {memory['memory']}\n"
+                memory_prompt += "[USER_MEMORY_END]"
+                prompt_template.append({"role": "user", "content": memory_prompt})
+
+            if conversation_memory:
+                memory_prompt = "Relevant key information from previous conversations:\n [CONVERSATION_MEMORY_BEGIN]"
+                for memory in conversation_memory:
+                    memory_prompt += f"- {memory['memory']}\n"
+                memory_prompt += "[CONVERSATION_MEMORY_END]"
                 prompt_template.append({"role": "user", "content": memory_prompt})
 
             if history_messages:
@@ -150,20 +220,102 @@ class LlmApi:
                     prompt_template.append(history_message)
                 prompt_template.append({"role": "user", "content": "\n [HISTORY_END]"})
 
-            prompt_template.append({"role": "user", "content": f"question: {user_message}"})
+            prompt_template.append({"role": "user", "content": f"query: {user_message}"})
 
             response = self.provider.get_response(prompt_template, model)
 
-            # store the memory
-            memory_response = self.memory_client.add_memory_by_user_id(f"User: {user_message}\n"
-                                                                       f"Assistant: {response['message']}",
-                                                     user_id=user_id)
+            conversation_memory = self.memory_client.add_memory_by_conversation_id(
+                f"User: {user_message}\n Assistant: {response['message']}",
+                conversation_id=conversation_id)
 
-            return {"response": response,
-                    "memory": memory_response}
+            # store the memory
+            user_memory = self.memory_client.add_memory_by_user_id(f"User: {user_message}\n",
+                                                                   user_id=user_id)
+
+            return {"response": response}
         except Exception as e:
             print(e)
             raise e
+
+    def construct_prompt(self, state: dict) -> dict:
+        user_memory = state["user_memory"]
+        conversation_memory = state["conversation_memory"]
+        user_message = state["message"]
+        history_messages = state["history_messages"]
+
+        system_template = f"""
+                            You are an assistant that helps with daily questions, english, math and coding\n
+                            You also may get memories or chat histories input,
+                            please respond to the question from the user.\n
+                            Input:\n
+                            [USER_MEMORY_BEGIN] (if any)\n
+                            some key user figures that can be helpful for this round of conversation\n
+                            [USER_MEMORY_END] (if any)\n
+
+                            [CONVERSATION_MEMORY_BEGIN] (if any)\n
+                            some key inference from previous history messages that
+                            can be helpful for this round of conversation\n
+                            [CONVERSATION_MEMORY_END] (if any)\n
+
+                            [HISTORY_BEGIN]\n
+                            histories messages containing both user questions and your response\n
+                            [HISTORY_END]\n
+                            user's new query
+                           """
+        prompt_template = [
+            {"role": "system", "content": system_template}
+        ]
+
+        # retrieve memory
+        if user_memory:
+            memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
+            for memory in user_memory:
+                memory_prompt += f"- {memory['memory']}\n"
+            memory_prompt += "[USER_MEMORY_END]"
+            prompt_template.append({"role": "user", "content": memory_prompt})
+
+        if user_memory:
+            memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
+            for memory in user_memory:
+                memory_prompt += f"- {memory['memory']}\n"
+            memory_prompt += "[USER_MEMORY_END]"
+            prompt_template.append({"role": "user", "content": memory_prompt})
+
+        if conversation_memory:
+            memory_prompt = "Relevant key information from previous conversations:\n [CONVERSATION_MEMORY_BEGIN]"
+            for memory in conversation_memory:
+                memory_prompt += f"- {memory['memory']}\n"
+            memory_prompt += "[CONVERSATION_MEMORY_END]"
+            prompt_template.append({"role": "user", "content": memory_prompt})
+
+        if history_messages:
+            prompt_template.append({"role": "user", "content": "full chat history records:\n [HISTORY_BEGIN]"})
+            for history in history_messages:
+                history_message = {"role": history.role, "content": history.message}
+                prompt_template.append(history_message)
+            prompt_template.append({"role": "user", "content": "\n [HISTORY_END]"})
+
+        prompt_template.append({"role": "user", "content": f"query: {user_message}"})
+
+        return {"prompt_template": prompt_template}
+
+    def search_conversation_memory(self, state: dict) -> dict:
+        conversation_memory = self.memory_client.search_memory_by_conversation_id(state["message"], state["user_id"])
+
+        return {"conversation_memory": conversation_memory}
+
+    def add_conversation_memory(self, state: dict) -> dict:
+        pass
+
+    def search_user_memory(self, state: dict) -> dict:
+        user_memory = self.memory_client.search_memory_by_user_id(state["message"], state["user_id"])
+
+        return {"user_memory": user_memory}
+
+    def add_user_memory(self, state: dict) -> dict:
+        pass
+
+
 
 
     # def RAG_chat(self, vectorstore, query, searches):

@@ -20,7 +20,8 @@ class State(TypedDict):
     response: LLM generated response
     prompt_template: custom prompt template for specific tasks
     model: Currently selected model
-    memory: related memory for this api call or conversation
+    conversation_memory: short-term memory for this conversation
+    user_memory: long-term memory for user
     user_id: The id of the user
     """
     message: Optional[str]
@@ -29,13 +30,15 @@ class State(TypedDict):
     response: Optional[dict]
     prompt_template: Optional[dict]
     model: Optional[dict]
-    memory: Optional[dict]
+    conversation_memory: Optional[dict]
+    user_memory: Optional[dict]
     user_id: str
+    conversation_id: str
 
 class LlmGraph:
     def __init__(self, llm_api: LlmApi):
         """
-        class for workflow management
+        class for langgraph agent workflow management
         Args:
             llm_api: api wrapper
         """
@@ -56,10 +59,15 @@ class LlmGraph:
         """
         return state
 
-    def run_chat_workflow(self, user_message: str, history_messages: List[str], user_id: str) -> dict:
+    def run_chat_workflow(self, conversation_id: str,
+                          user_message: str,
+                          history_messages: List[str],
+                          user_id: str) -> dict:
         """
         build the chat workflow using lang graph, which includes a classification of first chat,
          where a title will be generated.
+         graph: input -> first_chat_tool -> search user memory -> search conversation memory
+             -> rewrite prompt(add the memory) -> llm_call
         Args:
             user_message: the message input from the user
             history_messages: a list of history messages from previous interactions
@@ -72,6 +80,9 @@ class LlmGraph:
         self.graph.add_node("create_input_node", self.create_input_node)
         self.graph.add_node("generate_conversation_title", self.llm_api.generate_conversation_title)
         self.graph.add_node("generate_conversation_response", self.llm_api.chat)
+        self.graph.add_node("construct_prompt", self.llm_api.construct_prompt)
+        self.graph.add_node("search_conversation_memory", self.llm_api.search_conversation_memory)
+        self.graph.add_node("search_user_memory", self.llm_api.search_user_memory)
 
         self.graph.set_entry_point("create_input_node")
 
@@ -79,14 +90,20 @@ class LlmGraph:
             "create_input_node",
             self._classify_first_chat_tool,
             {"first_chat": "generate_conversation_title",
-             "continued_chat": "generate_conversation_response"}
+             "continued_chat": "search_user_memory"}
         )
 
-        self.graph.add_edge("generate_conversation_title", "generate_conversation_response")
+        self.graph.add_edge("generate_conversation_title", "search_user_memory")
+        self.graph.add_edge("search_user_memory", "search_conversation_memory")
+        self.graph.add_edge("search_conversation_memory", "construct_prompt")
+        self.graph.add_edge("construct_prompt", "generate_conversation_response")
+
+
         self.graph.add_edge("generate_conversation_response", END)
 
         try:
             graph = self.graph.compile()
+            self._draw_graph()
 
             # # Use the astream method for streaming
             # async for event in graph.astream({"message": user_message,
@@ -94,7 +111,8 @@ class LlmGraph:
             #                                   "user_id": user_id}):
             #     print(event)
 
-            finish_state = graph.invoke({"message": user_message,
+            finish_state = graph.invoke({"conversation_id": conversation_id,
+                                         "message": user_message,
                                          "history_messages": history_messages,
                                          "user_id": user_id})
 
