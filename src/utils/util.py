@@ -23,7 +23,7 @@ def set_api_key_environ(api_key_path: str) -> None:
 
     for key, value in keys.items():
         os.environ[key] = value
-        print(os.environ[key])
+        print(f"key: {key}: {value}")
 
 
 def generate_md5_id() -> str:

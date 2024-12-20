@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from langsmith import traceable
 from typing import Dict, Optional, List, Any
 
 from deprecated.sphinx import deprecated
@@ -73,8 +73,8 @@ class LlmApi:
 
         self.memory_client = get_memory_client()
 
-        # define lang graph workflow
 
+    @traceable
     def generate_conversation_title(self, state: dict, model: Optional[str] = "qwen2:0.5b") -> dict[str, Any]:
         """
 
@@ -118,6 +118,7 @@ class LlmApi:
         except Exception as e:
             raise e
 
+    @traceable
     def chat(self, state: dict, model: Optional[str] = None) -> dict[str, dict]:
         """
         Args:
@@ -237,6 +238,7 @@ class LlmApi:
             print(e)
             raise e
 
+    @traceable
     def construct_prompt(self, state: dict) -> dict:
         user_memory = state["user_memory"]
         conversation_memory = state["conversation_memory"]
@@ -299,19 +301,23 @@ class LlmApi:
 
         return {"prompt_template": prompt_template}
 
+    @traceable
     def search_conversation_memory(self, state: dict) -> dict:
         conversation_memory = self.memory_client.search_memory_by_conversation_id(state["message"], state["user_id"])
 
         return {"conversation_memory": conversation_memory}
 
+    @traceable
     def add_conversation_memory(self, state: dict) -> dict:
         pass
 
+    @traceable
     def search_user_memory(self, state: dict) -> dict:
         user_memory = self.memory_client.search_memory_by_user_id(state["message"], state["user_id"])
 
         return {"user_memory": user_memory}
 
+    @traceable
     def add_user_memory(self, state: dict) -> dict:
         pass
 

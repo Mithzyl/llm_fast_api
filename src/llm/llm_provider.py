@@ -1,7 +1,8 @@
 from time import time
 from typing import List, Any
 
-from openai import OpenAI
+from langsmith.wrappers import wrap_openai
+from openai import OpenAI, Client
 
 from utils.util import generate_md5_id
 
@@ -20,6 +21,7 @@ class OpenAIProvider:
         self.temperature = temperature
         self.api_key = api_key
         self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
+        self.wrapped_client = wrap_openai(self.client)
 
     def get_response(self, prompt: List[Any], model: str = 'qwen2:0.5b') -> dict:
         """
@@ -34,7 +36,7 @@ class OpenAIProvider:
         """
 
         try:
-            self.completion = self.client.chat.completions.create(
+            self.completion = self.wrapped_client.chat.completions.create(
                 model=model,
                 messages=prompt,
                 temperature=self.temperature,

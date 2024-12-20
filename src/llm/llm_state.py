@@ -2,6 +2,7 @@ from typing import Annotated, List, Dict, Optional
 
 from fastapi import Depends
 from langchain_core.runnables.graph import Node
+from langsmith import traceable
 from typing_extensions import TypedDict
 
 from langgraph.graph import StateGraph, START, END
@@ -59,6 +60,7 @@ class LlmGraph:
         """
         return state
 
+    @traceable
     def run_chat_workflow(self, conversation_id: str,
                           user_message: str,
                           history_messages: List[str],
@@ -103,7 +105,7 @@ class LlmGraph:
 
         try:
             graph = self.graph.compile()
-            self._draw_graph()
+            # self._draw_graph()
 
             # # Use the astream method for streaming
             # async for event in graph.astream({"message": user_message,
