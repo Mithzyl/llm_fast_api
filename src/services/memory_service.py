@@ -3,6 +3,7 @@ from http.client import HTTPException
 from sqlmodel import Session
 
 from llm.mem0.mem0_client import CustomMemoryClient
+from models.param.memory_param import MemoryParam
 from models.response.messgage_response import Response
 
 
@@ -32,10 +33,18 @@ class MemoryService:
     def get_all_memory(self):
         return self._memory_client.memory.get_all()
 
-    def delete_memory_by_memory_id(self, memory_id) -> Response:
+    def delete_memory_by_memory_id(self, memory_id: str) -> Response:
         try:
             messages = self._memory_client.memory.delete(memory_id=memory_id)
             return Response(code="200", message=messages)
         except Exception as e:
             raise HTTPException(e)
+
+    def update_memory_by_memory_id(self, memory_param: MemoryParam, memory_id: str):
+        try:
+            messages = self._memory_client.memory.update(memory_id=memory_id, data=memory_param.message)
+            return Response(code="200", message=messages)
+        except Exception as e:
+            raise HTTPException(e)
+
 

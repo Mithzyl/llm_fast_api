@@ -1,8 +1,9 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 
 from dependencies.memory_dependency import get_memory_service
+from models.param.memory_param import MemoryParam
 from models.response.messgage_response import Response
 from services import memory_service
 from services.memory_service import MemoryService
@@ -47,3 +48,9 @@ async def get_all_memory(memory_service: MemoryService = Depends(get_memory_serv
 async def delete_memory_by_id(memory_id: str,
                               memory_service: MemoryService = Depends(get_memory_service)) -> Response:
     return memory_service.delete_memory_by_memory_id(memory_id)
+
+@memory_router.put("/{memory_id}", response_model=Response)
+async def update_memory_by_id(memory_id: str,
+                              memory_param: MemoryParam = Body(),
+                              memory_service: MemoryService = Depends(get_memory_service)) -> Response:
+    return memory_service.update_memory_by_memory_id(memory_param, memory_id)
