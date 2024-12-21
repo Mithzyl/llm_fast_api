@@ -28,6 +28,7 @@ class State(TypedDict):
     message: Optional[str]
     history_messages: Optional[List[str] | None]
     title: Optional[str]
+    web_search_result: Optional[dict]
     response: Optional[dict]
     prompt_template: Optional[dict]
     model: Optional[dict]
@@ -85,6 +86,7 @@ class LlmGraph:
         self.graph.add_node("construct_prompt", self.llm_api.construct_prompt)
         self.graph.add_node("search_conversation_memory", self.llm_api.search_conversation_memory)
         self.graph.add_node("search_user_memory", self.llm_api.search_user_memory)
+        self.graph.add_node("search_web", self.llm_api.search_web)
 
         self.graph.set_entry_point("create_input_node")
 
@@ -97,7 +99,8 @@ class LlmGraph:
 
         self.graph.add_edge("generate_conversation_title", "search_user_memory")
         self.graph.add_edge("search_user_memory", "search_conversation_memory")
-        self.graph.add_edge("search_conversation_memory", "construct_prompt")
+        self.graph.add_edge("search_conversation_memory", "search_web")
+        self.graph.add_edge("search_web", "construct_prompt")
         self.graph.add_edge("construct_prompt", "generate_conversation_response")
 
 
@@ -137,6 +140,9 @@ class LlmGraph:
         print("running chat classification")
         print(state)
         return "continued_chat" if state["history_messages"] else "first_chat"
+
+    def _classify_web_search_tool(self, state: State) -> str:
+        return ""
 
 
 

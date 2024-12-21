@@ -1,4 +1,6 @@
 import os
+
+from langchain_community.tools import TavilySearchResults
 from langsmith import traceable
 from typing import Dict, Optional, List, Any
 
@@ -240,14 +242,16 @@ class LlmApi:
 
     @traceable
     def construct_prompt(self, state: dict) -> dict:
-        user_memory = state["user_memory"]
-        conversation_memory = state["conversation_memory"]
-        user_message = state["message"]
-        history_messages = state["history_messages"]
+        user_memory = state.get("user_memory", None)
+        conversation_memory = state.get("conversation_memory", None)
+        user_message = state.get("message", None)
+        history_messages = state.get("history_messages", None)
+        web_search_result = state.get("web_search_result", None)
 
         system_template = f"""
                             You are an assistant that helps with daily questions, english, math and coding\n
-                            You also may get memories or chat histories input,
+                            You also may get memories or chat histories input, or web search result which is
+                            related to the user's query.
                             please respond to the question from the user.\n
                             Input:\n
                             [USER_MEMORY_BEGIN] (if any)\n
@@ -262,6 +266,10 @@ class LlmApi:
                             [HISTORY_BEGIN]\n
                             histories messages containing both user questions and your response\n
                             [HISTORY_END]\n
+                            
+                            [WEB_SEARCH_RESULT_BEGIN]\n
+                            web search result messages containing information collected from search engine\n
+                            [WEB_SEARCH_RESULT_END]\n
                             user's new query
                            """
         prompt_template = [
@@ -269,12 +277,6 @@ class LlmApi:
         ]
 
         # retrieve memory
-        if user_memory:
-            memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
-            for memory in user_memory:
-                memory_prompt += f"- {memory['memory']}\n"
-            memory_prompt += "[USER_MEMORY_END]"
-            prompt_template.append({"role": "user", "content": memory_prompt})
 
         if user_memory:
             memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
@@ -290,12 +292,21 @@ class LlmApi:
             memory_prompt += "[CONVERSATION_MEMORY_END]"
             prompt_template.append({"role": "user", "content": memory_prompt})
 
+        # chat history
         if history_messages:
             prompt_template.append({"role": "user", "content": "full chat history records:\n [HISTORY_BEGIN]"})
             for history in history_messages:
                 history_message = {"role": history.role, "content": history.message}
                 prompt_template.append(history_message)
             prompt_template.append({"role": "user", "content": "\n [HISTORY_END]"})
+
+        if web_search_result:
+            web_message_prompt = "web search result:\n [WEB_SEARCH_RESULT_BEGIN]\n"
+            for result in web_search_result:
+                web_message_prompt += f"- {result['content']}\n"
+            web_message_prompt += "[WEB_SEARCH_RESULT_END]\n"
+
+            prompt_template.append({"role": "user", "content": web_message_prompt})
 
         prompt_template.append({"role": "user", "content": f"query: {user_message}"})
 
@@ -320,6 +331,25 @@ class LlmApi:
     @traceable
     def add_user_memory(self, state: dict) -> dict:
         pass
+
+    @traceable
+    def search_web(self, state: dict) -> dict:
+        message = state["message"]
+        tool = TavilySearchResults(
+            max_results=5,
+            include_answer=True,
+            include_raw_content=True,
+            include_images=True,
+            # search_depth="advanced",
+            # include_domains = []
+            # exclude_domains = []
+        )
+
+        search_result = tool.invoke({'query': message})
+
+        return {"web_search_result": search_result}
+
+
 
 
 
