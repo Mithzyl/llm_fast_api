@@ -49,6 +49,15 @@ async def get_conversation_history(conversation_id: str, llm_service: LlmService
 async def get_all_sessions_by_user_id(user_id: str, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_sessions_by_user_id(user_id)
 
+@llm_router.post("/stream_chat")
+async def create_stream_chat(
+        llm_service = Depends(get_llm_service),
+        ) -> Response:
+    full_string = ""
+    async for message in llm_service.create_stream_chat():
+        full_string += message[1][0].content
+    print(full_string)
+
 
 
 

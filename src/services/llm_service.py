@@ -1,14 +1,13 @@
 
 import time
-from typing import Any, Dict
+from typing import Any
 
-from fastapi import HTTPException, FastAPI
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import HTTPException
 from sqlmodel import Session, desc, select
 
 from fastapiredis.redis_client import RedisClient
-from llm.llm_state import LlmGraph
-from llm.mem0.mem0_client import CustomMemoryClient
+from llm.state.llm_state import LlmGraph
+from llm.state.planner_state import PlannerWorkflow
 from models.param.message_param import ChatCreateParam
 from models.response.llm_response import LlmDto
 from models.response.messgage_response import Response
@@ -292,5 +291,12 @@ class LlmService:
             # return Response(code="500", message=e)
         return Response(code="200", message=models)
 
+    async def create_stream_chat(self,
 
+                                ):
+
+        llm_graph = PlannerWorkflow()
+        async for state in llm_graph.stream_token("How to wrap OpenAI api with fast api for streaming llm response?"):
+            # print(state)
+            yield state
 
