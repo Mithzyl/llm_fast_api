@@ -29,6 +29,7 @@ class State(TypedDict):
     history_messages: Optional[List[str] | None]
     title: Optional[str]
     web_search_result: Optional[dict]
+    rag_context: Optional[dict]
     response: Optional[dict]
     prompt_template: Optional[dict]
     model: Optional[dict]
@@ -36,6 +37,8 @@ class State(TypedDict):
     user_memory: Optional[dict]
     user_id: str
     conversation_id: str
+
+    call_web_search: bool
 
 class LlmGraph:
     def __init__(self, llm_api: LlmApi):
@@ -87,6 +90,7 @@ class LlmGraph:
         self.graph.add_node("search_conversation_memory", self.llm_api.search_conversation_memory)
         self.graph.add_node("search_user_memory", self.llm_api.search_user_memory)
         self.graph.add_node("search_web", self.llm_api.search_web)
+        self.graph.add_node("search_local_vector", self.llm_api.search_rag_context)
 
         self.graph.set_entry_point("create_input_node")
 
@@ -99,7 +103,15 @@ class LlmGraph:
 
         self.graph.add_edge("generate_conversation_title", "search_user_memory")
         self.graph.add_edge("search_user_memory", "search_conversation_memory")
-        self.graph.add_edge("search_conversation_memory", "search_web")
+        self.graph.add_edge("search_conversation_memory", "search_local_vector")
+
+        self.graph.add_conditional_edges(
+            "search_local_vector",
+            self._classify_web_search_tool,
+            {"web_search": "search_web",
+                      "prompt_construct": "construct_prompt",}
+        )
+
         self.graph.add_edge("search_web", "construct_prompt")
         self.graph.add_edge("construct_prompt", "generate_conversation_response")
 
@@ -127,6 +139,10 @@ class LlmGraph:
             print(e)
             raise e
 
+    @traceable
+    def build_rag_flow(self):
+        pass
+
     def _classify_first_chat_tool(self, state: State) -> str:
         """
         decide whether this is a first chat or a continued chat
@@ -142,7 +158,11 @@ class LlmGraph:
         return "continued_chat" if state["history_messages"] else "first_chat"
 
     def _classify_web_search_tool(self, state: State) -> str:
-        return ""
+        call_web_search = state.get("call_web_search", False)
+        if call_web_search:
+            return "web_search"
+        else:
+            return "prompt_construct"
 
 
 

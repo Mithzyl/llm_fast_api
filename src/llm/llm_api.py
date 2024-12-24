@@ -17,9 +17,9 @@ from langchain_core.messages import convert_to_openai_messages
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 
+from db.milvus.milvus_client import connect_to_milvus
 from dependencies.memory_dependency import get_memory_client
 from llm.llm_provider import OpenAIProvider
-from llm.mem0.mem0_client import CustomMemoryClient
 
 from utils.util import draw_lang_graph_flow
 
@@ -247,6 +247,7 @@ class LlmApi:
         user_message = state.get("message", None)
         history_messages = state.get("history_messages", None)
         web_search_result = state.get("web_search_result", None)
+        retrieved_context = state.get("rag_context", None)
 
         system_template = f"""
                             You are an assistant that helps with daily questions, english, math and coding\n
@@ -308,6 +309,14 @@ class LlmApi:
 
             prompt_template.append({"role": "user", "content": web_message_prompt})
 
+        if retrieved_context:
+            retrieved_context_prompt = "retrieved context:\n [RETRIEVED_CONTEXT_BEGIN]\n"
+            for document in retrieved_context:
+                retrieved_context_prompt += f"- {document}\n"
+            retrieved_context_prompt += "[RETRIEVED_CONTEXT_END]\n"
+
+            prompt_template.append({"role": "user", "content": retrieved_context_prompt})
+
         prompt_template.append({"role": "user", "content": f"query: {user_message}"})
 
         return {"prompt_template": prompt_template}
@@ -349,8 +358,43 @@ class LlmApi:
 
         return {"web_search_result": search_result}
 
+    @traceable
+    def search_rag_context(self, state: dict) -> dict:
+        """
+        Perform a local vector store db similarity search and reranking using bge,
+        if the reranked result scores are poorly evaluated, a web search will be involved in the next phase
+        Args:
+            state:
 
+        Returns:
 
+        """
+        reranked_score_count = 0
+        relevance_content = []
+        call_web_search = False
+        user_message = state["message"]
+        vector_client = connect_to_milvus()
+        retrieved_docs = vector_client.search_similarity(query=user_message, k=10)
+        if retrieved_docs:
+            str_docs = []
+            for doc in retrieved_docs:
+                str_docs.append(doc.page_content)
+            reranked_docs = vector_client.rerank_document(query=user_message, documents=str_docs)
+
+            for result in reranked_docs:
+                if result.score > 0.5:
+                    reranked_score_count += 1
+                relevance_content.append(result.text)
+
+            if reranked_score_count <= 2:
+                call_web_search = True
+            return {
+                "rag_context": relevance_content,
+                "call_web_search": call_web_search
+            }
+
+        return {"rag_context": None,
+                "call_web_search": call_web_search}
 
 
 

@@ -25,7 +25,7 @@ async def get_memory_by_user_id(user_id: str,
     return memory_service.get_memories_by_user_id(user_id)
 
 
-@memory_router.get("{/memory_id}", response_model=Response)
+@memory_router.get("/{memory_id}", response_model=Response)
 async def get_memory_history(memory_id: str,
                              memory_service: MemoryService = Depends(get_memory_service)) -> Response:
     return memory_service.get_memory_history_by_memory_id(memory_id)
