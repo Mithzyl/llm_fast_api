@@ -1,5 +1,5 @@
 
-import time
+from time import time
 from typing import Any
 
 from fastapi import HTTPException
@@ -118,7 +118,7 @@ class LlmService:
         email = payload.get("email")
         user = self.session.exec(
             select(User).where(User.email == email)).first()  # get current user TODO: get token from redis
-        create_time = int(time.time())
+        create_time = int(time())
 
         model = llm_param.get_model()
 
@@ -148,7 +148,7 @@ class LlmService:
             last_message_primary_id = self.session.exec(select(llm_message).order_by(desc(llm_message.id))).first().id
             # message from the user
             new_user_message = llm_param.get_message()
-            update_time = int(time.time())
+            update_time = int(time())
             user_message_primary_id = last_message_primary_id + 1
             user_message_id = generate_md5_id()
             user_message = llm_message(id=user_message_primary_id,
@@ -214,7 +214,7 @@ class LlmService:
                 new_history_conversations.append(user_message)
                 new_history_conversations.append(ai_message)
 
-            cost = self.cal_cost(chat_state_response, user.userid)
+            # cost = self.cal_cost(chat_state_response, user.userid)
 
             # memory sql saving
 
@@ -224,7 +224,7 @@ class LlmService:
                 self.add_chat_session(conversation_latest_message)
             self.add_chat_session(user_message)
             self.add_chat_session(ai_message)
-            self.add_chat_session(cost)
+            # self.add_chat_session(cost)
 
             redis_client.set_conversation_by_conversation_id(conversation_id, new_history_conversations)
 
@@ -292,11 +292,160 @@ class LlmService:
         return Response(code="200", message=models)
 
     async def create_stream_chat(self,
+                                 llm_param: ChatCreateParam,
+                                 token: str,
+                                 llm_graph: LlmGraph,
+                                 redis_client: RedisClient) -> Response:
+        """
+        accepts passed param and call llm api, also interacts with db, redis db after successfully getting a llm response
+        pipeline:
+        1. decode the jwt token and validate the user
+        2. get chat history of the conversation if a conversation id is provided
+        3. call llm api for langgraph chat workflow
+        4. calculate and log the cost of this interaction
+        5. upload the response to db and redis(experimental)
+        Args:
+            llm_param: payload to call llm api
+            token: jwt token for user validation
+            llm_graph: injection of langgraph workflow
+            redis_client: injection of client instance that interacts with redis db
 
-                                ):
+        Returns:
+            OpenAI-alike response for new chat or continued chat
+        """
 
-        llm_graph = PlannerWorkflow()
-        async for state in llm_graph.stream_token("How to wrap OpenAI api with fast api for streaming llm response?"):
-            # print(state)
-            yield state
+        # llm_graph = LlmGraph
+        payload = decode_token(token)
+        email = payload.get("email")
+        user = self.session.exec(
+            select(User).where(User.email == email)).first()  # get current user TODO: get token from redis
+        create_time = int(time())
+
+        model = llm_param.get_model()
+
+        conversation_id = llm_param.get_conversation_id()
+        try:
+            if conversation_id:  # continued conversation
+                history_conversations = self.get_messages_by_conversation_id(conversation_id,
+                                                                             redis_client).get_message()
+
+                # get the conversation session
+                conversation = self.session.exec(select(llm_session)
+                                                 .where(llm_session.session_id == conversation_id)).first()
+                if not history_conversations:
+                    raise HTTPException(status_code=404, detail="Resource not found")
+
+                # get the latest message from the conversation for primary id in the database
+                conversation_latest_message = self.session.exec(select(llm_message)
+                                                                .where(llm_message.session_id == conversation_id)
+                                                                .order_by(desc(llm_message.create_time))).first()
+            else:
+                # new conversation
+                history_conversations = None
+                conversation_latest_message = None
+                conversation = None
+                conversation_id = generate_md5_id()
+
+            # get the primary id of the last message in the database
+            last_message_primary_id = self.session.exec(select(llm_message).order_by(desc(llm_message.id))).first().id
+            # message from the user
+            new_user_message = llm_param.get_message()
+            update_time = int(time())
+            user_message_primary_id = last_message_primary_id + 1
+            user_message_id = generate_md5_id()
+            user_message = llm_message(id=user_message_primary_id,
+                                       message_id=user_message_id,
+                                       session_id=conversation_id,
+                                       message=new_user_message,
+                                       user_id=user.userid,
+                                       create_time=create_time,
+                                       update_time=update_time,
+                                       role='user',
+                                       parent_id=conversation_latest_message.message_id if
+                                       conversation_latest_message else '',
+                                       children_id='')
+
+            # llm api call
+            full_string = ""
+            chat_id = generate_md5_id()
+            async for state in llm_graph.run_integrated_workflow(conversation_id,
+                                                                 new_user_message,
+                                                                 history_conversations,
+                                                                 user.userid):
+            # async for state in PlannerWorkflow().stream_token(new_user_message):
+                content = state[1][0].content
+                full_string += content
+
+                yield content
+            print(full_string)
+            # chat_state = llm_graph.run_chat_workflow(conversation_id,
+            #                                          new_user_message,
+            #                                          history_conversations,
+            #                                          user.userid)
+            # chat_state_response = chat_state['response']
+            # chat_id = chat_state_response.get('message_id')
+            user_message.children_id = chat_id
+
+            ai_primary_id = user_message.id + 1
+            ai_message = llm_message(id=ai_primary_id,
+                                     message_id=chat_id,
+                                     session_id=conversation_id,
+                                     message=full_string,
+                                     user_id=user.userid,
+                                     create_time=create_time,
+                                     update_time=create_time,
+                                     role='assistant',
+                                     parent_id=user_message_id,
+                                     children_id='')
+
+            # if new conversation, create new llm_session object
+            if not history_conversations:
+                chat_title = "test_title"
+
+                new_history_conversations = [user_message, ai_message]
+
+                # get the last llm session in the database
+                last_conversation = self.session.exec(select(llm_session).order_by(desc(llm_session.id))).first()
+                if not last_conversation:
+                    last_conversation_id = 0
+                else:
+                    last_conversation_id = last_conversation.id
+
+                conversation_primary_id = last_conversation_id + 1
+
+                conversation = llm_session(
+                    id=conversation_primary_id,
+                    session_id=conversation_id,
+                    title=chat_title,
+                    user_id=user.userid,
+                    create_time=create_time,
+                    update_time=update_time,
+                    model=llm_param.get_model(),)
+            else:
+                conversation_latest_message.children_id = user_message_id
+                conversation.update_time = create_time
+                new_history_conversations = history_conversations
+                new_history_conversations.append(user_message)
+                new_history_conversations.append(ai_message)
+
+            # cost = self.cal_cost(chat_state_response, user.userid)
+            #
+            # memory sql saving
+
+            self.add_chat_session(conversation)
+            if history_conversations:
+                self.add_chat_session(conversation_latest_message)
+            self.add_chat_session(user_message)
+            self.add_chat_session(ai_message)
+            # self.add_chat_session(cost)
+
+            redis_client.set_conversation_by_conversation_id(conversation_id, new_history_conversations)
+
+        except Exception as e:
+            print(e)
+            # return Response(code="500", message=e)
+
+        # conversation_response = LlmDto(conversation_id=conversation_id, content=chat_state_response, model=model)
+        # return Response(code="200", message=conversation_response)
+        # return Response(code="200", message="ok")
 

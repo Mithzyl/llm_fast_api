@@ -1,6 +1,9 @@
+import json
 import os
 
 from langchain_community.tools import TavilySearchResults
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 from langsmith import traceable
 from typing import Dict, Optional, List, Any
 
@@ -13,16 +16,27 @@ from langchain.chains.summarize.refine_prompts import prompt_template
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.callbacks import get_openai_callback
 
-from langchain_core.messages import convert_to_openai_messages
+from langchain_core.messages import convert_to_openai_messages, SystemMessage, HumanMessage
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
+from pydantic import BaseModel, Field
 
 from db.milvus.milvus_client import connect_to_milvus
 from dependencies.memory_dependency import get_memory_client
 from llm.llm_provider import OpenAIProvider
+from llm.state.planner_state import ReWOO
 
 from utils.util import draw_lang_graph_flow
 
+class PlanFormatter(BaseModel):
+    plan: str = Field(description=f"""plans that are analyzed and broken down from a
+                                    task and can solve the problem step by step""")
+    tool: str = Field(description=f"""Actions of the plans,
+     example: Google[input]: Worker that searches results from Google. Useful when you need to find short
+    and succinct answers about a specific topic. The input should be a search query.
+    """)
+    step: str = Field(description="the sequence number of current step, example: Step#1, Step#2")
+    query: str = Field(description="The instruction or the query")
 
 class LlmApi:
     """
@@ -70,8 +84,8 @@ class LlmApi:
                 self.llm_base_url = self.model_list[key]['base_url']
                 self.api_key = self.model_list[key]['api_key']
 
-        self.provider = OpenAIProvider(self.llm_base_url, api_key=self.api_key)
-        self.title_provider = OpenAIProvider(base_url=self.title_llm_url, api_key=self.title_api_key)
+        self.provider = ChatOpenAI(base_url=self.llm_base_url, api_key=self.api_key, model=self.model)
+        self.title_provider = ChatOpenAI(base_url=self.title_llm_url, api_key=self.title_api_key, model="qwen2:0.5b")
 
         self.memory_client = get_memory_client()
 
@@ -87,18 +101,18 @@ class LlmApi:
         Returns:
             state dict containing the generated title
         """
-        user_message = state["message"]
+        user_message = state["message"][0].content
         system_template = f"""
                             You need to generate a title by using the input in 10 words.
                           """
-        prompt_template = [
-            {"role": "system", "content": system_template},
-            {"role": "user", "content": user_message}
-        ]
+        prompt_template = ChatPromptTemplate.from_messages([
+            SystemMessage(system_template),
+            ("human", user_message),
+            ])
         try:
-            response = self.title_provider.get_response(prompt_template, model)
-            title = response.get('message'[:10],
-                                 user_message[:10 if len(user_message) > 10 else len(user_message)])
+            title_generator = prompt_template| self.title_provider
+            response = title_generator.invoke({})
+            title = response.content
             return {'title': title}
         except Exception as e:
             raise e
@@ -132,14 +146,14 @@ class LlmApi:
         """
         model = model if model else self.model
 
-        user_message = state["message"]
+        user_message = state["message"][0].content
         user_id = state["user_id"]
         conversation_id = state["conversation_id"]
         prompt_template = state["prompt_template"]
 
         try:
-
-            response = self.provider.get_response(prompt_template, model)
+            response_generator = prompt_template | self.provider
+            response = response_generator.invoke({})
 
             # store the memory
             conversation_memory = self.memory_client.add_memory_by_conversation_id(f"User: {user_message}\n Assistant: {response['message']}",
@@ -163,7 +177,7 @@ class LlmApi:
         """
         model = model if model else self.model
 
-        user_message = state["message"]
+        user_message = state["message"][0].content
         user_id = state["user_id"]
         history_messages = state["history_messages"]
         conversation_id = state["conversation_id"]
@@ -244,7 +258,7 @@ class LlmApi:
     def construct_prompt(self, state: dict) -> dict:
         user_memory = state.get("user_memory", None)
         conversation_memory = state.get("conversation_memory", None)
-        user_message = state.get("message", None)
+        user_message = state["message"][0].content
         history_messages = state.get("history_messages", None)
         web_search_result = state.get("web_search_result", None)
         retrieved_context = state.get("rag_context", None)
@@ -273,33 +287,34 @@ class LlmApi:
                             [WEB_SEARCH_RESULT_END]\n
                             user's new query
                            """
-        prompt_template = [
-            {"role": "system", "content": system_template}
-        ]
+        prompt_template = [SystemMessage(system_template)]
 
         # retrieve memory
 
         if user_memory:
             memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
             for memory in user_memory:
-                memory_prompt += f"- {memory['memory']}\n"
+                memory_prompt += f"- {memory.content}\n"
             memory_prompt += "[USER_MEMORY_END]"
-            prompt_template.append({"role": "user", "content": memory_prompt})
+            prompt_template.append(HumanMessage(memory_prompt))
 
         if conversation_memory:
             memory_prompt = "Relevant key information from previous conversations:\n [CONVERSATION_MEMORY_BEGIN]"
             for memory in conversation_memory:
                 memory_prompt += f"- {memory['memory']}\n"
             memory_prompt += "[CONVERSATION_MEMORY_END]"
-            prompt_template.append({"role": "user", "content": memory_prompt})
+            prompt_template.append(HumanMessage(memory_prompt))
 
         # chat history
         if history_messages:
-            prompt_template.append({"role": "user", "content": "full chat history records:\n [HISTORY_BEGIN]"})
+            history_prompt = "full chat history records:\n [HISTORY_BEGIN]"
+            prompt_template.append(("human", "full chat history records:\n [HISTORY_BEGIN]"))
             for history in history_messages:
-                history_message = {"role": history.role, "content": history.message}
-                prompt_template.append(history_message)
-            prompt_template.append({"role": "user", "content": "\n [HISTORY_END]"})
+                history_prompt += f"- role: {history.role} message: {history.message}\n"
+                # history_message = ("human", history.message)
+                # prompt_template.append(history_message)
+            history_prompt += "\n [HISTORY_END]"
+            prompt_template.append(HumanMessage(history_prompt))
 
         if web_search_result:
             web_message_prompt = "web search result:\n [WEB_SEARCH_RESULT_BEGIN]\n"
@@ -307,7 +322,7 @@ class LlmApi:
                 web_message_prompt += f"- {result['content']}\n"
             web_message_prompt += "[WEB_SEARCH_RESULT_END]\n"
 
-            prompt_template.append({"role": "user", "content": web_message_prompt})
+            prompt_template.append(HumanMessage(web_message_prompt))
 
         if retrieved_context:
             retrieved_context_prompt = "retrieved context:\n [RETRIEVED_CONTEXT_BEGIN]\n"
@@ -315,15 +330,16 @@ class LlmApi:
                 retrieved_context_prompt += f"- {document}\n"
             retrieved_context_prompt += "[RETRIEVED_CONTEXT_END]\n"
 
-            prompt_template.append({"role": "user", "content": retrieved_context_prompt})
+            prompt_template.append(HumanMessage(retrieved_context_prompt))
 
-        prompt_template.append({"role": "user", "content": f"query: {user_message}"})
+        # prompt_template.append(HumanMessage("query\n" + user_message))
 
         return {"prompt_template": prompt_template}
 
     @traceable
     def search_conversation_memory(self, state: dict) -> dict:
-        conversation_memory = self.memory_client.search_memory_by_conversation_id(state["message"], state["user_id"])
+        conversation_memory = self.memory_client.search_memory_by_conversation_id(state["message"][0].content,
+                                                                                  state["user_id"])
 
         return {"conversation_memory": conversation_memory}
 
@@ -333,9 +349,13 @@ class LlmApi:
 
     @traceable
     def search_user_memory(self, state: dict) -> dict:
-        user_memory = self.memory_client.search_memory_by_user_id(state["message"], state["user_id"])
+        user_memory = self.memory_client.search_memory_by_user_id(state["message"][0].content, state["user_id"])
+        memory_content = ""
+        for memory in user_memory:
+            memory_content += f"{memory['memory']}\n"
+        user_memory_message = HumanMessage(memory_content)
 
-        return {"user_memory": user_memory}
+        return {"user_memory": user_memory_message}
 
     @traceable
     def add_user_memory(self, state: dict) -> dict:
@@ -358,6 +378,175 @@ class LlmApi:
 
         return {"web_search_result": search_result}
 
+    def get_plan(self, state: dict) -> dict:
+        # Initialize node history if not present
+        if "node_history" not in state:
+            state["node_history"] = []
+
+        state["node_history"].append("plan")
+        print(f"[get_plan] Current node history: {state['node_history']}")
+
+        task = state["task"]
+        prompt = """For the following task, make plans that can solve the problem step by step. For each plan, indicate \
+        which external tool together with tool input to retrieve evidence.
+
+        Tools can be one of the following:
+        (1) Google[input]: Worker that searches results from Google. Useful when you need to find short
+        and succinct answers about a specific topic. The input should be a search query.
+        (2) LLM[input]: A pretrained LLM like yourself. Useful when you need to act with general
+        world knowledge and common sense. Prioritize it when you are confident in solving the problem
+        yourself. Input can be any instruction.
+
+        Your response should be in JSON format with the following structure for each step:
+        {{
+            "plan": "Detailed description of the plan",
+            "tool": "Tool",
+            "step": "Step#N",
+            "query": "Query strings"
+        }}
+        Do not wrap the json result in markdown format or json markers
+        
+        Example:
+        [
+            {{
+                "plan": "Understand the concept of black holes, their formation, and properties to ensure foundational knowledge.",
+                "tool": "Google",
+                "step": "Step#1",
+                "query": "Latest discoveries about black holes in astrophysics."
+            }},
+            {{
+                "plan": "Research the latest discoveries or notable black hole studies to find up-to-date and relevant examples.",
+                "tool": "LLM",
+                "step": "Step#2",
+                "query": "Explain the concept of black holes, their formation, and key properties."
+            }},
+            {{
+                "plan": "Based on the collected information, summarize the findings and explain how black holes influence their surroundings.",
+                "tool": "LLM",
+                "step": "Step#3",
+                "query": "Summarize the latest findings about black holes and their impact on their surroundings."
+            }}
+        ]
+
+
+        Note: You can only call Google tool once in the plan.
+
+        Task: {task}"""
+
+        prompt_template = ChatPromptTemplate.from_messages([("user", prompt)])
+        planner = prompt_template | self.provider
+        result = planner.invoke({"task": task})
+
+        # Parse the JSON response into PlanFormatter objects
+        steps = []
+        try:
+            # Assuming the response is a list of JSON objects
+            # plan_steps = json.loads(result.content.replace("```json", "").replace("```", "").strip())
+            plan_steps = json.loads(result.content.strip())
+            for step in plan_steps:
+                formatted_step = PlanFormatter(**step)
+                # Convert to tuple format expected by the rest of the code
+                steps.append((
+                    formatted_step.plan,
+                    formatted_step.step,
+                    formatted_step.tool.split('[')[0],  # Extract tool name
+                    formatted_step.query  # Extract input
+                ))
+        except Exception as e:
+            print(f"Error parsing plan: {e}")
+            steps = []
+
+        return {"steps": steps, "plan_string": result.content}
+
+    @traceable
+    def tool_execution(self, state: dict) -> dict:
+        """Execute tools according to the plan and collect evidence for each step.
+        
+        Args:
+            state: Contains steps, plan_string, and other context
+            
+        Returns:
+            Dictionary containing execution results and evidence
+        """
+        state["node_history"].append("tool")
+        print(f"[tool_execution] Current node history: {state['node_history']}")
+
+        steps = state["steps"]
+        evidence_store = {}  # Store evidence from each step
+        final_results = []
+
+        for step_num, (plan, step_id, tool, instruction) in enumerate(steps):
+            # Replace any #E references in the instruction with actual evidence
+            for prev_step in range(step_num):
+                # instruction = instruction.replace(f"Step#{prev_step}",
+                #                                evidence_store.get(f"Step#{prev_step}", ""))
+                instruction = evidence_store.get(f"Step#{prev_step}", "")
+
+            # Execute the appropriate tool
+            if tool == "Google":
+                search_tool = TavilySearchResults(max_results=5)
+                search_results = search_tool.invoke({"query": instruction})
+                evidence = [result['content'] for result in search_results]
+                
+            elif tool == "LLM":
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", "You are an AI assistant helping with a multi-step task."),
+                    ("user", f"Plan: {plan}\nInstruction: {instruction}")
+                ])
+                chain = prompt | self.provider
+                evidence = chain.invoke({})
+                evidence = evidence.content if hasattr(evidence, 'content') else str(evidence)
+            
+            # Store evidence for this step
+            evidence_key = f"Step#{step_num}"
+            evidence_store[evidence_key] = evidence
+            
+            final_results.append({
+                "plan": plan,
+                "step": step_id,
+                "tool": tool,
+                "evidence": evidence
+            })
+
+        return {
+            "results": final_results,
+        }
+
+    def solve(self, state: dict) -> dict:
+        """
+        Final node in the planner workflow that generates the solution
+        """
+        state["node_history"].append("solve")
+        print(f"[solve] Current node history: {state['node_history']}")
+        solve_prompt = """Solve the following task or problem. To solve the problem, we have made step-by-step Plan and \
+            retrieved corresponding Evidence to each Plan. Use them with caution since long evidence might \
+            contain irrelevant information.
+
+            {plan}
+
+            Now solve the question or task according to provided Evidence above. Respond with the answer
+            directly with no extra words.
+
+            Task: {task}
+            """
+
+
+        steps = state["results"]
+        plan = ""
+        for _, step in enumerate(steps):
+            _plan, step_id, tool, instruction = step['plan'], step['step'], step['tool'], step['evidence']
+            plan += f"Plan: {_plan}\n{step_id} = {tool}[{instruction}]\n"
+        prompt = solve_prompt.format(plan=plan, task=state["task"])
+        prompt_template = state["prompt_template"]
+        prompt_template.append(SystemMessage(prompt))
+        try:
+
+            result = self.provider.invoke(prompt_template)
+            return {"result": result}
+        except Exception as e:
+            print(e)
+            raise e
+
     @traceable
     def search_rag_context(self, state: dict) -> dict:
         """
@@ -372,7 +561,7 @@ class LlmApi:
         reranked_score_count = 0
         relevance_content = []
         call_web_search = False
-        user_message = state["message"]
+        user_message = state["message"][0].content
         vector_client = connect_to_milvus()
         retrieved_docs = vector_client.search_similarity(query=user_message, k=10)
         if retrieved_docs:
@@ -395,6 +584,7 @@ class LlmApi:
 
         return {"rag_context": None,
                 "call_web_search": call_web_search}
+
 
 
 

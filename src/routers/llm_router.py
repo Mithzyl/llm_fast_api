@@ -3,6 +3,7 @@ from fastapi.openapi.models import HTTPBearer
 from fastapi.security import HTTPAuthorizationCredentials
 from redis import Redis
 from sqlmodel import Session
+from sse_starlette import EventSourceResponse
 
 from dependencies.llm_dependency import get_llm_service, get_llm_api, get_llm_graph
 from dependencies.memory_dependency import get_memory_client
@@ -51,12 +52,23 @@ async def get_all_sessions_by_user_id(user_id: str, llm_service: LlmService = De
 
 @llm_router.post("/stream_chat")
 async def create_stream_chat(
+        llm_param: ChatCreateParam = Body(),
+        token: str = Depends(oauth2_scheme),
         llm_service = Depends(get_llm_service),
-        ) -> Response:
+        llm_graph = Depends(get_llm_graph),
+        redis_client = Depends(get_redis)
+        ):
     full_string = ""
-    async for message in llm_service.create_stream_chat():
-        full_string += message[1][0].content
-    print(full_string)
+    # async for message in llm_service.create_stream_chat(llm_param, token, redis_client):
+    #     print(message)
+    #     full_string += message[1][0].content
+    #
+    # return Response(code="200", message=full_string)
+    return EventSourceResponse(llm_service.create_stream_chat(llm_param,
+                                                              token,
+                                                              llm_graph,
+                                                              redis_client),
+                                                              media_type='text/event-stream')
 
 
 

@@ -43,7 +43,7 @@ def generate_md5_id() -> str:
 
 def draw_lang_graph_flow(graph: StateGraph):
     try:
-        mermaid_code = graph.get_graph().draw_mermaid_png()
+        mermaid_code = graph.get_graph(xray=1).draw_mermaid_png()
         with open("graph.jpg", "wb") as f:
             f.write(mermaid_code)
 
