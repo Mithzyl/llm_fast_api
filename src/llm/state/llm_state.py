@@ -221,9 +221,9 @@ class LlmGraph:
 
     @traceable
     async def run_integrated_workflow(self, conversation_id: str,
-                              user_message: str,
-                              history_messages: List[str],
-                              user_id: str) -> dict:
+                                      user_message: str,
+                                      history_messages: List[str],
+                                      user_id: str) -> dict:
         """
         Build an integrated workflow that combines title generation, memory retrieval, and planning
         flow: input -> (title generation | memory retrieval) -> planner subgraph -> add memory
@@ -283,7 +283,7 @@ class LlmGraph:
 
         try:
             graph = self.graph.compile()
-            self._draw_graph(graph)
+            # self._draw_graph(graph)
             for s in graph.stream({
                 "conversation_id": conversation_id,
                 "message": user_message,
@@ -292,14 +292,15 @@ class LlmGraph:
             }, stream_mode=["messages"],
             config={"recursion_limit": 10}):
                 try:
-                    print(s)
-                    yield s
+                    if s[1][1]['langgraph_node'] == 'solve':
+                        yield s
                 except Exception as e:
                     raise e
         except Exception as e:
             print(traceback.format_exc())
             print(e)
             raise e
+
 
     def _create_planner_subgraph(self) -> CompiledStateGraph:
         """

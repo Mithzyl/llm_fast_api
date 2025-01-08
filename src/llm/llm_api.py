@@ -486,7 +486,12 @@ class LlmApi:
             if tool == "Google":
                 search_tool = TavilySearchResults(max_results=5)
                 search_results = search_tool.invoke({"query": instruction})
-                evidence = [result['content'] for result in search_results]
+                evidence = []
+                print("Debug evidence")
+                print(f"search results: {search_results}")
+                for result in search_results:
+                    print(result)
+                    evidence.append(result['content'])
                 
             elif tool == "LLM":
                 prompt = ChatPromptTemplate.from_messages([
@@ -525,7 +530,7 @@ class LlmApi:
             {plan}
 
             Now solve the question or task according to provided Evidence above. Respond with the answer
-            directly with no extra words.
+            according to plan results and respond in markdown format.
 
             Task: {task}
             """

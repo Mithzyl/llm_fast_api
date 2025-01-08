@@ -429,7 +429,7 @@ class LlmService:
                 new_history_conversations.append(ai_message)
 
             # cost = self.cal_cost(chat_state_response, user.userid)
-            #
+
             # memory sql saving
 
             self.add_chat_session(conversation)

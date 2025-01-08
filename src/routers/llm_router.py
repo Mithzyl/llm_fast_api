@@ -58,17 +58,13 @@ async def create_stream_chat(
         llm_graph = Depends(get_llm_graph),
         redis_client = Depends(get_redis)
         ):
-    full_string = ""
-    # async for message in llm_service.create_stream_chat(llm_param, token, redis_client):
-    #     print(message)
-    #     full_string += message[1][0].content
-    #
-    # return Response(code="200", message=full_string)
+
     return EventSourceResponse(llm_service.create_stream_chat(llm_param,
                                                               token,
                                                               llm_graph,
                                                               redis_client),
-                                                              media_type='text/event-stream')
+                                                              media_type="text/event-stream",
+                                                              )
 
 
 
