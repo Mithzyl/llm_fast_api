@@ -101,7 +101,7 @@ class LlmApi:
         Returns:
             state dict containing the generated title
         """
-        user_message = state["message"][0].content
+        user_message = state["task"]
         system_template = f"""
                             You need to generate a title by using the input in 10 words.
                           """

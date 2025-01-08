@@ -400,7 +400,7 @@ class LlmService:
 
             # if new conversation, create new llm_session object
             if not history_conversations:
-                chat_title = "test_title"
+                chat_title = llm_graph.run_generate_title_workflow(new_user_message)
 
                 new_history_conversations = [user_message, ai_message]
 

@@ -57,6 +57,7 @@ class State(TypedDict):
     node_history: Annotated[list, operator.add]
 
 
+
 class LlmGraph:
     def __init__(self, llm_api: LlmApi):
         """
@@ -243,7 +244,6 @@ class LlmGraph:
 
         # Add nodes
         self.graph.add_node("create_input_node", self.create_input_node)
-        self.graph.add_node("generate_conversation_title", self.llm_api.generate_conversation_title)
         self.graph.add_node("search_user_memory", self.llm_api.search_user_memory)
         self.graph.add_node("search_conversation_memory", self.llm_api.search_conversation_memory)
         self.graph.add_node("construct_prompt", self.llm_api.construct_prompt)
@@ -272,14 +272,8 @@ class LlmGraph:
         self.graph.add_edge("construct_prompt", "get_plan")
         self.graph.add_edge("get_plan", "tool_execution")
         self.graph.add_edge("tool_execution", "solve")
+        self.graph.add_edge("solve", END)
 
-
-        self.graph.add_conditional_edges("solve",
-                                         self._classify_first_chat_tool,
-                                         {"first_chat": "generate_conversation_title",
-                                          "continued_chat": END})
-
-        self.graph.add_edge("generate_conversation_title", END)
 
         try:
             graph = self.graph.compile()
@@ -300,6 +294,25 @@ class LlmGraph:
             print(traceback.format_exc())
             print(e)
             raise e
+
+    @traceable
+    def run_generate_title_workflow(self, task: str) -> str:
+        graph = StateGraph(State)
+
+        graph.add_node("generate_conversation_title", self.llm_api.generate_conversation_title)
+
+        graph.set_entry_point("generate_conversation_title")
+
+        graph.add_edge("generate_conversation_title", END)
+
+        try:
+            compiled_graph = graph.compile()
+            state = compiled_graph.invoke({"task": task})
+
+            return state['title']
+        except Exception as e:
+            raise e
+
 
 
     def _create_planner_subgraph(self) -> CompiledStateGraph:
