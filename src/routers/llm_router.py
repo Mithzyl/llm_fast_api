@@ -36,9 +36,13 @@ async def get_models(llm_service: LlmService = Depends(get_llm_service)) -> Resp
     return llm_service.get_model_list()
 
 
-@llm_router.get("/conversation/{message_id}", response_model=Response)
+@llm_router.get("/message/{message_id}", response_model=Response)
 async def get_message_by_id(message_id: int, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_message_by_message_id(message_id)
+
+@llm_router.get("/conversation/{conversation_id}", response_model=Response)
+async def get_conversation_by_id(conversation_id: str, llm_service: LlmService = Depends(get_llm_service)):
+     return llm_service.get_conversation_by_conversation_id(conversation_id)
 
 @llm_router.get("/{conversation_id}", response_model=Response)
 async def get_conversation_history(conversation_id: str, llm_service: LlmService = Depends(get_llm_service),

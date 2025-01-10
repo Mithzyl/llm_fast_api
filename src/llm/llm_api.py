@@ -85,7 +85,10 @@ class LlmApi:
                 self.api_key = self.model_list[key]['api_key']
 
         self.provider = ChatOpenAI(base_url=self.llm_base_url, api_key=self.api_key, model=self.model)
-        self.title_provider = ChatOpenAI(base_url=self.title_llm_url, api_key=self.title_api_key, model="qwen2:0.5b")
+        self.title_provider = ChatOpenAI(base_url=self.title_llm_url,
+                                         api_key=self.title_api_key,
+                                         model="qwen2:0.5b",
+                                         temperature=0.1)
 
         self.memory_client = get_memory_client()
 

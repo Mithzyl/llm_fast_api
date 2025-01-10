@@ -325,10 +325,11 @@ class LlmService:
 
         conversation_id = llm_param.get_conversation_id()
         try:
-            if conversation_id:  # continued conversation
-                history_conversations = self.get_messages_by_conversation_id(conversation_id,
-                                                                             redis_client).get_message()
+              # continued conversation
+            history_conversations = self.get_messages_by_conversation_id(conversation_id,
+                                                                         redis_client).get_message()
 
+            if len(history_conversations) > 1:
                 # get the conversation session
                 conversation = self.session.exec(select(llm_session)
                                                  .where(llm_session.session_id == conversation_id)).first()
@@ -344,7 +345,6 @@ class LlmService:
                 history_conversations = None
                 conversation_latest_message = None
                 conversation = None
-                conversation_id = generate_md5_id()
 
             # get the primary id of the last message in the database
             last_message_primary_id = self.session.exec(select(llm_message).order_by(desc(llm_message.id))).first().id
@@ -368,7 +368,7 @@ class LlmService:
             # llm api call
             full_string = ""
             chat_id = generate_md5_id()
-            async for state in llm_graph.run_integrated_workflow(conversation_id,
+            async for state in llm_graph.run_test_workflow(conversation_id,
                                                                  new_user_message,
                                                                  history_conversations,
                                                                  user.userid):
@@ -439,7 +439,7 @@ class LlmService:
             self.add_chat_session(ai_message)
             # self.add_chat_session(cost)
 
-            redis_client.set_conversation_by_conversation_id(conversation_id, new_history_conversations)
+            # redis_client.set_conversation_by_conversation_id(conversation_id, new_history_conversations)
 
         except Exception as e:
             print(e)
@@ -448,4 +448,17 @@ class LlmService:
         # conversation_response = LlmDto(conversation_id=conversation_id, content=chat_state_response, model=model)
         # return Response(code="200", message=conversation_response)
         # return Response(code="200", message="ok")
+
+    def get_conversation_by_conversation_id(self, conversation_id) -> Response:
+        """
+        Get conversation name by its id
+        Args:
+            conversation_id:
+
+        Returns:
+
+        """
+        conversation = self.session.exec(select(llm_session)
+                                         .where(llm_session.session_id == conversation_id)).first()
+        return Response(code="200", message=conversation)
 

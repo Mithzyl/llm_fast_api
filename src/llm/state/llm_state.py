@@ -296,6 +296,61 @@ class LlmGraph:
             raise e
 
     @traceable
+    async def run_test_workflow(self, conversation_id: str,
+                                      user_message: str,
+                                      history_messages: List[str],
+                                      user_id: str) -> dict:
+        """
+        Build an integrated workflow that combines title generation, memory retrieval, and planning
+        flow: input -> (title generation | memory retrieval) -> planner subgraph -> add memory
+
+        Args:
+            conversation_id: unique identifier for the conversation
+            user_message: the message input from the user
+            history_messages: a list of history messages from previous interactions
+            user_id: the id of the user
+
+        Returns:
+            the final state after workflow execution
+        """
+        # Create planner subgraph
+        # planner_graph = self._create_planner_subgraph()
+        # self._draw_graph(planner_graph)
+
+        # Add nodes
+        self.graph.add_node("create_input_node", self.create_input_node)
+
+        # Add planner subgraph as a node
+        # self.graph.add_node("planner_workflow", planner_graph)
+        self.graph.add_node("solve", self.llm_api.solve)
+
+
+        # Set entry point
+        self.graph.set_entry_point("create_input_node")
+        self.graph.add_edge("create_input_node", "solve")
+        self.graph.add_edge("solve", END)
+
+        try:
+            graph = self.graph.compile()
+            # self._draw_graph(graph)
+            for s in graph.stream({
+                "conversation_id": conversation_id,
+                "message": user_message,
+                "user_id": user_id,
+                "task": user_message,  # Use the user message as the task for planning
+            }, stream_mode=["messages"],
+                    config={"recursion_limit": 10}):
+                try:
+                    if s[1][1]['langgraph_node'] == 'solve':
+                        yield s
+                except Exception as e:
+                    raise e
+        except Exception as e:
+            print(traceback.format_exc())
+            print(e)
+            raise e
+
+    @traceable
     def run_generate_title_workflow(self, task: str) -> str:
         graph = StateGraph(State)
 
