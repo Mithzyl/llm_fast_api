@@ -3,6 +3,8 @@ import traceback
 from typing import Annotated, List, Dict, Optional
 
 from fastapi import Depends
+from frontend.dispatcher import callbacks
+from langchain_community.callbacks import OpenAICallbackHandler
 from langchain_core.runnables.graph import Node
 from langgraph.graph.graph import CompiledGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -68,6 +70,7 @@ class LlmGraph:
         self.graph = StateGraph(State)
         self.llm_api = llm_api
         self.planner = PlannerWorkflow()
+        self.call_back_handler = OpenAICallbackHandler()
 
 
     def _draw_graph(self, graph: CompiledStateGraph):
@@ -242,41 +245,43 @@ class LlmGraph:
         # planner_graph = self._create_planner_subgraph()
         # self._draw_graph(planner_graph)
 
+        graph = StateGraph(State)
+
         # Add nodes
-        self.graph.add_node("create_input_node", self.create_input_node)
-        self.graph.add_node("search_user_memory", self.llm_api.search_user_memory)
-        self.graph.add_node("search_conversation_memory", self.llm_api.search_conversation_memory)
-        self.graph.add_node("construct_prompt", self.llm_api.construct_prompt)
+        graph.add_node("create_input_node", self.create_input_node)
+        graph.add_node("search_user_memory", self.llm_api.search_user_memory)
+        graph.add_node("search_conversation_memory", self.llm_api.search_conversation_memory)
+        graph.add_node("construct_prompt", self.llm_api.construct_prompt)
         
         # Add planner subgraph as a node
         # self.graph.add_node("planner_workflow", planner_graph)
-        self.graph.add_node("get_plan", self.llm_api.get_plan)
-        self.graph.add_node("tool_execution", self.llm_api.tool_execution)
-        self.graph.add_node("solve", self.llm_api.solve)
+        graph.add_node("get_plan", self.llm_api.get_plan)
+        graph.add_node("tool_execution", self.llm_api.tool_execution)
+        graph.add_node("solve", self.llm_api.solve)
 
         # node for joining result
-        self.graph.add_node("join_result", self._join_results)
+        graph.add_node("join_result", self._join_results)
 
         # Set entry point
-        self.graph.set_entry_point("create_input_node")
+        graph.set_entry_point("create_input_node")
 
         # Add parallel execution paths
-        self.graph.add_edge("create_input_node", "search_user_memory")
-        self.graph.add_edge("create_input_node", "search_conversation_memory")
-        self.graph.add_edge("search_user_memory", "join_result")
-        self.graph.add_edge("search_conversation_memory", "join_result")
-        self.graph.add_edge("join_result", "construct_prompt")
+        graph.add_edge("create_input_node", "search_user_memory")
+        graph.add_edge("create_input_node", "search_conversation_memory")
+        graph.add_edge("search_user_memory", "join_result")
+        graph.add_edge("search_conversation_memory", "join_result")
+        graph.add_edge("join_result", "construct_prompt")
 
 
         # Continue with memory retrieval path
-        self.graph.add_edge("construct_prompt", "get_plan")
-        self.graph.add_edge("get_plan", "tool_execution")
-        self.graph.add_edge("tool_execution", "solve")
-        self.graph.add_edge("solve", END)
+        graph.add_edge("construct_prompt", "get_plan")
+        graph.add_edge("get_plan", "tool_execution")
+        graph.add_edge("tool_execution", "solve")
+        graph.add_edge("solve", END)
 
 
         try:
-            graph = self.graph.compile()
+            graph = graph.compile()
             # self._draw_graph(graph)
             for s in graph.stream({
                 "conversation_id": conversation_id,
@@ -316,22 +321,23 @@ class LlmGraph:
         # Create planner subgraph
         # planner_graph = self._create_planner_subgraph()
         # self._draw_graph(planner_graph)
+        graph = StateGraph(State)
 
         # Add nodes
-        self.graph.add_node("create_input_node", self.create_input_node)
+        graph.add_node("create_input_node", self.create_input_node)
 
         # Add planner subgraph as a node
         # self.graph.add_node("planner_workflow", planner_graph)
-        self.graph.add_node("solve", self.llm_api.solve)
+        graph.add_node("solve", self.llm_api.solve)
 
 
         # Set entry point
-        self.graph.set_entry_point("create_input_node")
-        self.graph.add_edge("create_input_node", "solve")
-        self.graph.add_edge("solve", END)
+        graph.set_entry_point("create_input_node")
+        graph.add_edge("create_input_node", "solve")
+        graph.add_edge("solve", END)
 
         try:
-            graph = self.graph.compile()
+            graph = graph.compile()
             # self._draw_graph(graph)
             for s in graph.stream({
                 "conversation_id": conversation_id,
@@ -339,7 +345,8 @@ class LlmGraph:
                 "user_id": user_id,
                 "task": user_message,  # Use the user message as the task for planning
             }, stream_mode=["messages"],
-                    config={"recursion_limit": 10}):
+                    config={"recursion_limit": 10},
+                ):
                 try:
                     if s[1][1]['langgraph_node'] == 'solve':
                         yield s
