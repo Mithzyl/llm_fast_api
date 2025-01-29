@@ -16,7 +16,7 @@ from models.model.llm_cost import LlmCost
 from models.model.llm_message import llm_message, llm_session
 from models.model.llm_model import LlmModel
 from models.model.user import User
-from utils.authenticate import decode_token
+from utils.authenticate import verify_token
 from utils.util import generate_md5_id
 
 
@@ -114,7 +114,7 @@ class LlmService:
             OpenAI-alike response for new chat or continued chat
         """
 
-        payload = decode_token(token)
+        payload = verify_token(token)
         email = payload.get("email")
         user = self.session.exec(
             select(User).where(User.email == email)).first()  # get current user TODO: get token from redis
@@ -315,7 +315,7 @@ class LlmService:
         """
 
         # llm_graph = LlmGraph
-        payload = decode_token(token)
+        payload = verify_token(token)
         email = payload.get("email")
         user = self.session.exec(
             select(User).where(User.email == email)).first()  # get current user TODO: get token from redis

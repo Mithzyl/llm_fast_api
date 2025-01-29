@@ -34,9 +34,17 @@ class RedisClient:
         json_messages = json.dumps(json_messages)
         self.redis.set(conversation_id, json_messages)
 
+    def get_client(self):
+        return self.redis
 
-
-async def get_redis() -> RedisClient:
-    redis_pool = await init_redis_pool()
+def get_custom_redis_client() -> RedisClient:
+    redis_pool = init_redis_pool()
 
     return RedisClient(redis_pool)
+
+def get_redis() -> Redis:
+    redis_pool = init_redis_pool()
+    redis = RedisClient(redis_pool).get_client()
+
+    return redis
+

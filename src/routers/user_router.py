@@ -1,13 +1,10 @@
 from fastapi import APIRouter, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
-from sqlalchemy.testing.pickleable import User
-from sqlmodel import Session
-from starlette.responses import JSONResponse
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 
 from dependencies.user_dependency import get_user_service
+from fastapiredis.redis_client import get_custom_redis_client, RedisClient
 from models.param.user_param import UserLogin, UserRegister
 from models.response.messgage_response import Response
-from services import user_service
 from services.user_service import UserService
 
 user_router = APIRouter(
@@ -32,8 +29,9 @@ async def get_me(token: str = Depends(oauth2_scheme),
 
 @user_router.post("/login", response_model=Response)
 async def login(login_request: UserLogin,
-                user_service: UserService = Depends(get_user_service)) -> str:
-    return user_service.login(login_request)
+                user_service: UserService = Depends(get_user_service),
+                redis_client: RedisClient = Depends(get_custom_redis_client)) -> str:
+    return user_service.login(login_request, redis_client)
 
 
 @user_router.post("/register", response_model=Response)

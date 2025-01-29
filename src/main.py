@@ -4,6 +4,7 @@ import yaml
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from middleware.jwt_middleware import JWTMiddleware
 from routers import user_router, llm_router
 from db.db import create_db_and_tables, create_db
 from routers.memory_router import memory_router
@@ -43,6 +44,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(JWTMiddleware)
 
 app.include_router(user_router.user_router)
 app.include_router(llm_router.llm_router)

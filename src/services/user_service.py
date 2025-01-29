@@ -5,16 +5,19 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from jwt import InvalidTokenError
 from passlib.hash import bcrypt
+from redis import Redis
 from requests import HTTPError
 from sqlmodel import Session, desc, select
 
+from config.jwt_config import ACCESS_TOKEN_EXPIRE_MINUTES
 from db.db import get_session
+from fastapiredis.redis_client import RedisClient
 from models.param.user_param import UserRegister, UserLogin
 from models.response.messgage_response import Response
 from models.response.user_response import UserDTO
 from models.model.llm_model import LlmModel
 from models.model.user import User
-from utils.authenticate import authenticate_user, decode_token
+from utils.authenticate import authenticate_user, verify_token
 from utils.jwt import encode_jwt, decode_jwt
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -31,7 +34,7 @@ class UserService:
     def get_user_by_id(self, id: int) -> User:
         return self.session.exec(select(User).where(User.id == id)).first()
 
-    def login(self, login_request: UserLogin) -> Response:
+    def login(self, login_request: UserLogin, redis_client: RedisClient) -> Response:
         # query user, not exist return error
         user = self.session.exec(select(User).where(User.email == login_request.email)).first()
         # print(user)
@@ -40,8 +43,14 @@ class UserService:
 
         try:
             password = login_request.password
-            # TODO: Save token to redis
+
             access_token = authenticate_user(user, password)
+
+            # set redis key for the user
+            # TODO: set device type, web, mobile, etc.
+            redis_key = f"auth:{user.userid}"
+
+            redis_client.get_client().set(redis_key, access_token, ex=ACCESS_TOKEN_EXPIRE_MINUTES)
 
             return Response(code="200", message=str(access_token))
 
@@ -82,14 +91,15 @@ class UserService:
 
         # 3. TODO: Auto login after register
 
-    def get_me(self, token: str) -> Response:
+    def get_me(self, token: str, redis_client: Redis) -> Response:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
         try:
-            decode_payload = decode_token(token)
+            decode_payload = verify_token(token)
+
             email = decode_payload.get('email', None)
 
             if not email:

@@ -7,7 +7,7 @@ from sse_starlette import EventSourceResponse
 
 from dependencies.llm_dependency import get_llm_service, get_llm_api, get_llm_graph
 from dependencies.memory_dependency import get_memory_client
-from fastapiredis.redis_client import get_redis
+from fastapiredis.redis_client import get_custom_redis_client
 from routers.user_router import security, oauth2_scheme
 from models.param.message_param import ChatCreateParam
 from models.response.messgage_response import Response
@@ -25,7 +25,7 @@ async def create_chat(
         token: str = Depends(oauth2_scheme),
         llm_service = Depends(get_llm_service),
         llm_graph = Depends(get_llm_graph),
-        redis_client = Depends(get_redis)
+        redis_client = Depends(get_custom_redis_client)
         ) -> Response:
         return llm_service.create_chat(llm_param, token, llm_graph, redis_client)
 
@@ -46,7 +46,7 @@ async def get_conversation_by_id(conversation_id: str, llm_service: LlmService =
 
 @llm_router.get("/{conversation_id}", response_model=Response)
 async def get_conversation_history(conversation_id: str, llm_service: LlmService = Depends(get_llm_service),
-                                   redis_client: Redis = Depends(get_redis)):
+                                   redis_client: Redis = Depends(get_custom_redis_client)):
     return llm_service.get_messages_by_conversation_id(conversation_id, redis_client)
 
 
@@ -60,7 +60,7 @@ async def create_stream_chat(
         token: str = Depends(oauth2_scheme),
         llm_service = Depends(get_llm_service),
         llm_graph = Depends(get_llm_graph),
-        redis_client = Depends(get_redis)
+        redis_client = Depends(get_custom_redis_client)
         ):
 
     return EventSourceResponse(llm_service.create_stream_chat(llm_param,
