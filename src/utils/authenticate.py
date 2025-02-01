@@ -42,5 +42,8 @@ def verify_token(token: str, redis_client: Redis) -> dict:
 
         return decode_payload
 
+    except HTTPException:
+        raise
+
     except Exception as e:
         raise e

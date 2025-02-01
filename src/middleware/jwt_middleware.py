@@ -32,6 +32,12 @@ class JWTMiddleware(BaseHTTPMiddleware):
                 headers=e.headers
             )
 
+        except Exception as e:
+            return HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=e
+            )
+
     async def verify_authorization(self, request, call_next,
                                    credential_exception=HTTPException(
                                         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -43,14 +49,18 @@ class JWTMiddleware(BaseHTTPMiddleware):
 
         token = authorization.split(' ')[1] if len(authorization.split(' ')) > 1 else None
 
-        redis_client = get_custom_redis_client().get_client()
-        if token:
-            verify_token(token, redis_client)
+        try:
+            redis_client = get_custom_redis_client().get_client()
+            if token:
+                verify_token(token, redis_client)
 
-        else:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+            else:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
-        response = await call_next(request)
+            response = await call_next(request)
 
-        return response
+            return response
+
+        except Exception:
+            raise
 
