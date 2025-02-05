@@ -1,13 +1,11 @@
 from fastapi import APIRouter, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.testing.pickleable import User
-from sqlmodel import Session
-from starlette.responses import JSONResponse
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 
-from models.dao.user_dao import UserLogin, UserRegister
-from models.dto.messgage_dto import Response
-from services import user_service
-from services.user_service import UserService, get_user_service
+from dependencies.user_dependency import get_user_service
+from fastapiredis.redis_client import get_custom_redis_client, RedisClient
+from models.param.user_param import UserLogin, UserRegister
+from models.response.messgage_response import Response
+from services.user_service import UserService
 
 user_router = APIRouter(
     prefix="/users",
@@ -15,6 +13,7 @@ user_router = APIRouter(
 )
 
 security = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 
 
 @user_router.get("/")
@@ -23,14 +22,16 @@ async def get_users(user_service: UserService = Depends(get_user_service)):
 
 
 @user_router.get("/me")
-async def get_me(token: HTTPAuthorizationCredentials = Depends(security),
+async def get_me(token: str = Depends(oauth2_scheme),
                  user_service: UserService = Depends(get_user_service)):
     return user_service.get_me(token)
 
 
 @user_router.post("/login", response_model=Response)
-async def login(login_request: UserLogin, user_service: UserService = Depends(get_user_service)):
-    return user_service.login(login_request)
+async def login(login_request: UserLogin,
+                user_service: UserService = Depends(get_user_service),
+                redis_client: RedisClient = Depends(get_custom_redis_client)) -> str:
+    return user_service.login(login_request, redis_client)
 
 
 @user_router.post("/register", response_model=Response)

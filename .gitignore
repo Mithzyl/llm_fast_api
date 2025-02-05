@@ -2,3 +2,8 @@
 /src/key.json
 /.idea/
 /src/config.yaml
+/src/data/
+/src/milvus_db/
+/src/volumes/
+/src/static
+/src/model_url_config.json
