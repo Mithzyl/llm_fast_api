@@ -26,7 +26,7 @@ class JWTMiddleware(BaseHTTPMiddleware):
             await self.verify_authorization(request, call_next)
             return await call_next(request)
         except HTTPException as e:
-            return HTTPException(
+            raise HTTPException(
                 status_code=e.status_code,
                 detail=e.detail,
                 headers=e.headers
@@ -55,12 +55,14 @@ class JWTMiddleware(BaseHTTPMiddleware):
                 verify_token(token, redis_client)
 
             else:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Middleware exception")
 
             response = await call_next(request)
 
             return response
 
-        except Exception:
+        except Exception as e:
+            print(e)
+
             raise
 

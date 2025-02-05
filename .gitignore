@@ -6,3 +6,4 @@
 /src/milvus_db/
 /src/volumes/
 /src/static
+/src/model_url_config.json

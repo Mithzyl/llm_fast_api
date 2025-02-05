@@ -16,14 +16,37 @@ def read_yaml_config(yaml_file: str) -> dict:
 
 def set_api_key_environ(api_key_path: str) -> None:
     """
-    Reads the API key from the given path and sets the environ variable.
+    Reads API keys and from the given path and sets the environ variable.
     """
     with open(api_key_path) as io:
-        keys = json.load(io)
+        model_keys = json.load(io)
 
-    for key, value in keys.items():
+    for key, value in model_keys.items():
         os.environ[key] = value
         print(f"key: {key}: {value}")
+
+
+def find_root_dir(start_path=None, marker='.git') -> None:
+    """
+    从当前目录向上查找包含指定标志文件的目录作为根目录。
+    """
+    if start_path is None:
+        start_path = os.path.abspath(__file__)
+
+    current_dir = os.path.dirname(start_path)
+    while current_dir != os.path.dirname(current_dir):  # 到达文件系统根目录时停止
+        if os.path.exists(os.path.join(current_dir, marker)):
+            os.environ["ROOT_DIR"] = current_dir
+            print("ROOT_DIR: ", current_dir)
+            return
+        current_dir = os.path.dirname(current_dir)
+
+    raise FileNotFoundError(f"未找到包含 {marker} 的根目录")
+
+
+# 查找根目录
+root_dir = find_root_dir(marker='.git')
+print("根目录:", root_dir)
 
 
 def generate_md5_id() -> str:

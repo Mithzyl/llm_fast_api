@@ -49,8 +49,10 @@ class LlmService:
                 redis_client.set_conversation_by_conversation_id(conversation_id, messages)
 
         except Exception as e:
-            raise e
             print("get_messages_by_conversation_id error: ", e)
+            print("conversation id ", conversation_id)
+            raise e
+
 
         return Response(code="200", message=messages)
 
@@ -315,7 +317,7 @@ class LlmService:
         """
 
         # llm_graph = LlmGraph
-        payload = verify_token(token)
+        payload = verify_token(token, redis_client.get_client())
         email = payload.get("email")
         user = self.session.exec(
             select(User).where(User.email == email)).first()  # get current user TODO: get token from redis
@@ -324,8 +326,10 @@ class LlmService:
         model = llm_param.get_model()
 
         conversation_id = llm_param.get_conversation_id()
+        if not conversation_id:
+            conversation_id = generate_md5_id()
         try:
-              # continued conversation
+            # continued conversation
             history_conversations = self.get_messages_by_conversation_id(conversation_id,
                                                                          redis_client).get_message()
 

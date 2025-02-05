@@ -1,5 +1,6 @@
 import json
 import os
+from os import environ
 
 from langchain_community.tools import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate
@@ -46,43 +47,25 @@ class LlmApi:
     def __init__(self, model: str,
                  temperature: float,
                  base_url: Optional[str] = None,
-                 api_key: Optional[str] = None):
+                 api_key: Optional[str] = None,
+                 model_config_file: Optional[str] = '/src/model_url_config.json'):
         self.model = model
         self.temperature = temperature
-        self.llm_base_url = base_url if base_url else os.environ.get('llm_base_url')
-        self.api_key = api_key if api_key else os.environ.get('api_key')
 
         self.title_llm_url = os.environ.get('llm_base_url')
         self.title_api_key = os.environ.get('api_key')
 
-        self.model_list = {
-            # configure model here
-            'gpt': {
-                'base_url': os.environ.get('openai_chat_url'),
-                'api_key': os.environ.get('OPENAI_API_KEY')
-            },
-            'gemma': {
-                'base_url': os.environ.get('gemma_base_url'),
-                'api_key': os.environ.get('GEMMA_API_KEY')
-            },
-            'deepseek': {
-                'base_url': os.environ.get('deepseek_base_url'),
-                'api_key': os.environ.get('DEEPSEEK_API_KEY')
-            },
-            'qwen': {
-                'base_url': os.environ.get('llm_base_url'),
-                'api_key': os.environ.get('api_key')
-            },
-            'llama': {
-                'base_url': os.environ.get('llm_base_url'),
-                'api_key': os.environ.get('api_key')
-            },
-        }
+        with open(environ["ROOT_DIR"] + model_config_file, 'r') as f:
+            self.model_list = json.load(f)
 
-        for key in self.model_list.keys():
-            if key in model:
-                self.llm_base_url = self.model_list[key]['base_url']
-                self.api_key = self.model_list[key]['api_key']
+        if self.model_list:
+            for key in self.model_list.keys():
+                if key in model:
+                    self.llm_base_url = self.model_list[key]['base_url']
+                    self.api_key = self.model_list[key]['api_key']
+        else:
+            self.llm_base_url = base_url if base_url else os.environ.get('llm_base_url')
+            self.api_key = api_key if api_key else os.environ.get('api_key')
 
         self.provider = ChatOpenAI(base_url=self.llm_base_url, api_key=self.api_key, model=self.model)
         self.title_provider = ChatOpenAI(base_url=self.title_llm_url,

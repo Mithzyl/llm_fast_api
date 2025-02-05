@@ -8,13 +8,14 @@ from middleware.jwt_middleware import JWTMiddleware
 from routers import user_router, llm_router
 from db.db import create_db_and_tables, create_db
 from routers.memory_router import memory_router
-from utils.util import set_api_key_environ
+from utils.util import set_api_key_environ, find_root_dir
 
 
 async def lifespan(app: FastAPI):
     print("Application Startup")
     try:
         set_api_key_environ("./key.json")
+        find_root_dir()
         # create_db_and_tables()
     except Exception as e:
         db_name = "test.db"
