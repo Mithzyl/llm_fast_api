@@ -297,7 +297,7 @@ class LlmGraph:
                     raise e
         except Exception as e:
             print(traceback.format_exc())
-            print(e)
+            # print(e)
             raise e
 
     @traceable

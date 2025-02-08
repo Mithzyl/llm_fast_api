@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 
 import yaml
-from fastapi import FastAPI
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from config.error_config import http_exception_handler, default_error_handler
 from middleware.jwt_middleware import JWTMiddleware
 from routers import user_router, llm_router
 from db.db import create_db_and_tables, create_db
@@ -47,6 +49,9 @@ app.add_middleware(
 )
 
 app.add_middleware(JWTMiddleware)
+
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(Exception, default_error_handler)
 
 app.include_router(user_router.user_router)
 app.include_router(llm_router.llm_router)
