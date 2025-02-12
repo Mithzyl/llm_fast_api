@@ -5,7 +5,6 @@ from starlette.responses import JSONResponse
 
 from dependencies.memory_dependency import get_memory_service
 from models.param.memory_param import MemoryParam
-from models.response.messgage_response import Response
 from services import memory_service
 from services.memory_service import MemoryService
 

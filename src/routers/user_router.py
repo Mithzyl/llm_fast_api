@@ -5,7 +5,6 @@ from starlette.responses import JSONResponse
 from dependencies.user_dependency import get_user_service
 from fastapiredis.redis_client import get_custom_redis_client, RedisClient
 from models.param.user_param import UserLogin, UserRegister
-from models.response.messgage_response import Response
 from services.user_service import UserService
 
 user_router = APIRouter(

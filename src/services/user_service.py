@@ -14,7 +14,6 @@ from config.jwt_config import ACCESS_TOKEN_EXPIRE_MINUTES
 from db.db import get_session
 from fastapiredis.redis_client import RedisClient
 from models.param.user_param import UserRegister, UserLogin
-from models.response.messgage_response import Response
 from models.response.user_response import UserDTO
 from models.model.llm_model import LlmModel
 from models.model.user import User
@@ -118,7 +117,6 @@ class UserService:
         except InvalidTokenError as e:
             # TODO: redirect
             raise credentials_exception
-            # return Response(code="500", message=str(e))
 
     def get_models(self) -> JSONResponse:
         models = self.session.exec(select(LlmModel)).all()

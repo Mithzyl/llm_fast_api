@@ -5,7 +5,6 @@ from starlette.responses import JSONResponse
 
 from llm.mem0.mem0_client import CustomMemoryClient
 from models.param.memory_param import MemoryParam
-from models.response.messgage_response import Response
 
 
 class MemoryService:

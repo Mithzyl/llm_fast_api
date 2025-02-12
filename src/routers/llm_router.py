@@ -11,7 +11,6 @@ from dependencies.memory_dependency import get_memory_client
 from fastapiredis.redis_client import get_custom_redis_client
 from routers.user_router import security, oauth2_scheme
 from models.param.message_param import ChatCreateParam
-from models.response.messgage_response import Response
 from services.llm_service import LlmService
 
 llm_router = APIRouter(
@@ -27,7 +26,7 @@ async def create_chat(
         llm_service = Depends(get_llm_service),
         llm_graph = Depends(get_llm_graph),
         redis_client = Depends(get_custom_redis_client)
-        ) -> Response:
+        ) -> JSONResponse:
         return llm_service.create_chat(llm_param, token, llm_graph, redis_client)
 
 
