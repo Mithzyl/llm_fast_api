@@ -8,6 +8,7 @@ from passlib.hash import bcrypt
 from redis import Redis
 from requests import HTTPError
 from sqlmodel import Session, desc, select
+from starlette.responses import JSONResponse
 
 from config.jwt_config import ACCESS_TOKEN_EXPIRE_MINUTES
 from db.db import get_session
@@ -27,19 +28,19 @@ class UserService:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_users(self) -> Response:
+    def get_users(self) -> JSONResponse:
         users = self.session.exec(select(User)).all()
-        return Response(code="200", message=users)
+        return JSONResponse(status_code=200, content=users)
 
     def get_user_by_id(self, id: int) -> User:
         return self.session.exec(select(User).where(User.id == id)).first()
 
-    def login(self, login_request: UserLogin, redis_client: RedisClient) -> Response:
+    def login(self, login_request: UserLogin, redis_client: RedisClient) -> JSONResponse:
         # query user, not exist return error
         user = self.session.exec(select(User).where(User.email == login_request.email)).first()
         # print(user)
         if not user:
-            return Response(code="500", message="no such user")
+            return JSONResponse(status_code=401, content="no such user")
 
         try:
             password = login_request.password
@@ -52,16 +53,16 @@ class UserService:
 
             redis_client.get_client().set(redis_key, access_token, ex=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-            return Response(code="200", message=str(access_token))
+            return JSONResponse(status_code=200, content=str(access_token))
 
         except Exception as e:
-            return Response(code="200", message=e)
+            raise e
 
-    def register(self, register_request: UserRegister) -> Response:
+    def register(self, register_request: UserRegister) -> JSONResponse:
         password = register_request.password
         name = register_request.name
         if password == '':
-            return Response(code="200", message="password can not be empty")
+            return JSONResponse(status_code=401, content="password can not be empty")
 
         email = register_request.email
         exist_user = self.session.exec(select(User).where(User.email == email)).first()
@@ -83,15 +84,15 @@ class UserService:
             except Exception as e:
                 self.session.rollback()
 
-                return Response(code="500", message=str(e))
+                return JSONResponse(status_code=500, content=str(e))
 
-            return Response(code="200", message="success")
+            return JSONResponse(status_code=200, content="success")
         else:
-            return Response(code="200", message="user already exist")
+            return JSONResponse(status_code=401, content="user already exists")
 
         # 3. TODO: Auto login after register
 
-    def get_me(self, token: str, redis_client: Redis) -> Response:
+    def get_me(self, token: str, redis_client: Redis) -> JSONResponse:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -112,17 +113,17 @@ class UserService:
             user_response = UserDTO.model_validate(user)
             # TODO: redirect
 
-            return Response(code="200", message=user_response)
+            return JSONResponse(status_code=200, content=user_response)
 
         except InvalidTokenError as e:
             # TODO: redirect
             raise credentials_exception
             # return Response(code="500", message=str(e))
 
-    def get_models(self) -> Response:
+    def get_models(self) -> JSONResponse:
         models = self.session.exec(select(LlmModel)).all()
         print(models)
-        return Response(code="200", message=models)
+        return JSONResponse(status_code=200, content=models)
 
 
 

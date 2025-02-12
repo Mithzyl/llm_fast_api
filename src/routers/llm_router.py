@@ -4,6 +4,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from redis import Redis
 from sqlmodel import Session
 from sse_starlette import EventSourceResponse
+from starlette.responses import JSONResponse
 
 from dependencies.llm_dependency import get_llm_service, get_llm_api, get_llm_graph
 from dependencies.memory_dependency import get_memory_client
@@ -19,7 +20,7 @@ llm_router = APIRouter(
 )
 
 #Create a new session of chat
-@llm_router.post("/chat", response_model=Response)
+@llm_router.post("/chat")
 async def create_chat(
         llm_param: ChatCreateParam = Body(),
         token: str = Depends(oauth2_scheme),
@@ -31,26 +32,26 @@ async def create_chat(
 
 
 # Get model list
-@llm_router.get("/get_model", response_model=Response)
-async def get_models(llm_service: LlmService = Depends(get_llm_service)) -> Response:
+@llm_router.get("/get_model")
+async def get_models(llm_service: LlmService = Depends(get_llm_service)) -> JSONResponse:
     return llm_service.get_model_list()
 
 
-@llm_router.get("/message/{message_id}", response_model=Response)
+@llm_router.get("/message/{message_id}")
 async def get_message_by_id(message_id: int, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_message_by_message_id(message_id)
 
-@llm_router.get("/conversation/{conversation_id}", response_model=Response)
+@llm_router.get("/conversation/{conversation_id}")
 async def get_conversation_by_id(conversation_id: str, llm_service: LlmService = Depends(get_llm_service)):
      return llm_service.get_conversation_by_conversation_id(conversation_id)
 
-@llm_router.get("/{conversation_id}", response_model=Response)
+@llm_router.get("/{conversation_id}")
 async def get_conversation_history(conversation_id: str, llm_service: LlmService = Depends(get_llm_service),
                                    redis_client: Redis = Depends(get_custom_redis_client)):
     return llm_service.get_messages_by_conversation_id(conversation_id, redis_client)
 
 
-@llm_router.get("/{user_id}/sessions", response_model=Response)
+@llm_router.get("/{user_id}/sessions")
 async def get_all_sessions_by_user_id(user_id: str, llm_service: LlmService = Depends(get_llm_service)):
     return llm_service.get_sessions_by_user_id(user_id)
 

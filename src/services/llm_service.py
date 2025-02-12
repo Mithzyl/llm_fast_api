@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import HTTPException
 from sqlmodel import Session, desc, select
+from starlette.responses import JSONResponse
 
 from fastapiredis.redis_client import RedisClient
 from llm.state.llm_state import LlmGraph
@@ -26,7 +27,7 @@ class LlmService:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_messages_by_conversation_id(self, conversation_id: str, redis_client: RedisClient) -> Response:
+    def get_messages_by_conversation_id(self, conversation_id: str, redis_client: RedisClient) -> JSONResponse:
         """
         get the chat history of a conversation
         Args:
@@ -54,9 +55,9 @@ class LlmService:
             raise e
 
 
-        return Response(code="200", message=messages)
+        return JSONResponse(status_code=200, content=messages)
 
-    def get_message_by_message_id(self, message_id: object) -> Response:
+    def get_message_by_message_id(self, message_id: object) -> JSONResponse:
         """
         get message content given a message id
         Args:
@@ -67,9 +68,9 @@ class LlmService:
         """
         message = self.session.exec(select(llm_message).filter(llm_message.id == message_id)).first()
 
-        return Response(code="200", message=message)
+        return JSONResponse(status_code=200, content=message)
 
-    def get_sessions_by_user_id(self, user_id) -> Response:
+    def get_sessions_by_user_id(self, user_id) -> JSONResponse:
         """
         get conversation session of one user
         # TODO: filter by time (e.g. recent 30 conversations or one month)
@@ -89,15 +90,15 @@ class LlmService:
                 session_dto.append(dto)
 
         except Exception as e:
-            return Response(code="500", message=str(e))
+            raise e
 
-        return Response(code="200", message=session_dto)
+        return JSONResponse(status_code=200, content=session_dto)
 
     def create_chat(self,
                     llm_param: ChatCreateParam,
                     token: str,
                     llm_graph: LlmGraph,
-                    redis_client: RedisClient) -> Response:
+                    redis_client: RedisClient) -> JSONResponse:
         """
         accepts passed param and call llm api, also interacts with db, redis db after successfully getting a llm response
         pipeline:
@@ -232,10 +233,10 @@ class LlmService:
 
         except Exception as e:
             print(e)
-            return Response(code="500", message=e)
+            raise e
 
         conversation_response = LlmDto(conversation_id=conversation_id, content=chat_state_response, model=model)
-        return Response(code="200", message=conversation_response)
+        return JSONResponse(status_code=200, content=conversation_response)
 
     def add_chat_session(self, record: Any) -> None:
         try:
@@ -280,7 +281,7 @@ class LlmService:
 
         return message_cost
 
-    def get_model_list(self) -> Response:
+    def get_model_list(self) -> JSONResponse:
         """
         Returns:
             model list
@@ -290,14 +291,14 @@ class LlmService:
 
         except Exception as e:
             raise e
-            # return Response(code="500", message=e)
-        return Response(code="200", message=models)
+
+        return JSONResponse(status_code=200, content=models)
 
     async def create_stream_chat(self,
                                  llm_param: ChatCreateParam,
                                  token: str,
                                  llm_graph: LlmGraph,
-                                 redis_client: RedisClient) -> Response:
+                                 redis_client: RedisClient) -> JSONResponse:
         """
         accepts passed param and call llm api, also interacts with db, redis db after successfully getting a llm response
         pipeline:
@@ -331,7 +332,7 @@ class LlmService:
         try:
             # continued conversation
             history_conversations = self.get_messages_by_conversation_id(conversation_id,
-                                                                         redis_client).get_message()
+                                                                         redis_client)["content"]
 
             if len(history_conversations) > 1:
                 # get the conversation session
@@ -449,13 +450,14 @@ class LlmService:
 
         except Exception as e:
             print(e)
+            raise e
             # return Response(code="500", message=e)
 
         # conversation_response = LlmDto(conversation_id=conversation_id, content=chat_state_response, model=model)
         # return Response(code="200", message=conversation_response)
         # return Response(code="200", message="ok")
 
-    def get_conversation_by_conversation_id(self, conversation_id) -> Response:
+    def get_conversation_by_conversation_id(self, conversation_id) -> JSONResponse:
         """
         Get conversation name by its id
         Args:
@@ -466,5 +468,5 @@ class LlmService:
         """
         conversation = self.session.exec(select(llm_session)
                                          .where(llm_session.session_id == conversation_id)).first()
-        return Response(code="200", message=conversation)
+        return JSONResponse(status_code=200, content=conversation)
 
