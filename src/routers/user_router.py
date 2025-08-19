@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from redis import Redis
 from starlette.responses import JSONResponse
 
 from dependencies.user_dependency import get_user_service
-from fastapiredis.redis_client import get_custom_redis_client, RedisClient
+from fastapiredis.redis_client import get_custom_redis_client, RedisClient, get_redis
 from models.param.user_param import UserLogin, UserRegister
 from services.user_service import UserService
 
@@ -23,8 +24,9 @@ async def get_users(user_service: UserService = Depends(get_user_service)):
 
 @user_router.get("/me")
 async def get_me(token: str = Depends(oauth2_scheme),
-                 user_service: UserService = Depends(get_user_service)):
-    return user_service.get_me(token)
+                 user_service: UserService = Depends(get_user_service),
+                 redis: Redis = Depends(get_redis)):
+    return user_service.get_me(token, redis)
 
 
 @user_router.post("/login")

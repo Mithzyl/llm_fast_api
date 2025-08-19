@@ -98,7 +98,7 @@ class UserService:
             headers={"WWW-Authenticate": "Bearer"},
         )
         try:
-            decode_payload = verify_token(token)
+            decode_payload = verify_token(token, redis_client)
 
             email = decode_payload.get('email', None)
 
@@ -112,7 +112,7 @@ class UserService:
             user_response = UserDTO.model_validate(user)
             # TODO: redirect
 
-            return JSONResponse(status_code=200, content=user_response)
+            return JSONResponse(status_code=200, content=user_response.model_dump())
 
         except InvalidTokenError as e:
             # TODO: redirect

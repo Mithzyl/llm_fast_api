@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 import random
 
+import tiktoken
 import yaml
 from langgraph.graph import StateGraph
 from matplotlib import image as mpimg, pyplot as plt
@@ -79,3 +80,10 @@ def draw_lang_graph_flow(graph: StateGraph):
     except Exception as e:
         # This requires some extra dependencies and is optional
         print(e)
+
+def calculate_token_usage(text, model="o200k_base") -> int:
+    encoding = tiktoken.get_encoding(model)
+
+    token = encoding.encode(text)
+
+    return len(token)

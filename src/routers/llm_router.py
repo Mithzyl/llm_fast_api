@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 
 from dependencies.llm_dependency import get_llm_service, get_llm_api, get_llm_graph
 from dependencies.memory_dependency import get_memory_client
-from fastapiredis.redis_client import get_custom_redis_client
+from fastapiredis.redis_client import get_custom_redis_client, RedisClient
 from routers.user_router import security, oauth2_scheme
 from models.param.message_param import ChatCreateParam
 from services.llm_service import LlmService
@@ -46,7 +46,7 @@ async def get_conversation_by_id(conversation_id: str, llm_service: LlmService =
 
 @llm_router.get("/{conversation_id}")
 async def get_conversation_history(conversation_id: str, llm_service: LlmService = Depends(get_llm_service),
-                                   redis_client: Redis = Depends(get_custom_redis_client)):
+                                   redis_client: RedisClient = Depends(get_custom_redis_client)):
     return llm_service.get_messages_by_conversation_id(conversation_id, redis_client)
 
 

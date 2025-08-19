@@ -64,12 +64,12 @@ class OpenAIProvider:
         except Exception as e:
             raise e
 
-    async def stream_response(self, prompt: List[Any]):
+    async def stream_response(self, prompt: List[Any], model: str = 'deepseek-chat'):
         config = ensure_config(None | {"tags": ['agent_llm']})
         callback_manager = get_callback_manager_for_config(config)
         llm_run_manager = callback_manager.on_chat_model_start({}, [])[0]
         self.completion = await self.async_client.chat.completions.create(
-            model='gpt-4o-mini-2024-07-18',
+            model=model,
             messages=prompt,
             temperature=self.temperature,
             stream=True,

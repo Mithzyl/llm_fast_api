@@ -15,7 +15,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 
 from llm.llm_api import LlmApi
-from utils.util import draw_lang_graph_flow
+from utils.util import draw_lang_graph_flow, calculate_token_usage
 from llm.state.planner_state import ReWOO, PlannerWorkflow
 
 def merge_dicts(state: Dict, new_data: Dict) -> Dict:
@@ -23,6 +23,8 @@ def merge_dicts(state: Dict, new_data: Dict) -> Dict:
     updated_state = state.copy()
     updated_state.update(new_data)
     return updated_state
+
+
 
 class State(TypedDict):
     """
@@ -57,6 +59,9 @@ class State(TypedDict):
     results: dict
     result: Annotated[list, add_messages]
     node_history: Annotated[list, operator.add]
+
+    input_token: int
+    output_token: int
 
 
 
@@ -114,6 +119,9 @@ class LlmGraph:
         state["plan_string"] = state.get("plan_string", None)
         state["task"] = state.get("task", "")
         state["node_history"] = []
+
+        state["input_token"] = 0
+        state["output_token"] = 0
         
         # Ensure required fields are present
         if "user_id" not in state:
@@ -245,6 +253,8 @@ class LlmGraph:
         # planner_graph = self._create_planner_subgraph()
         # self._draw_graph(planner_graph)
 
+        callback_handler = OpenAICallbackHandler()
+
         graph = StateGraph(State)
 
         # Add nodes
@@ -283,6 +293,8 @@ class LlmGraph:
         try:
             graph = graph.compile()
             # self._draw_graph(graph)
+
+
             for s in graph.stream({
                 "conversation_id": conversation_id,
                 "message": user_message,
@@ -290,11 +302,17 @@ class LlmGraph:
                 "task": user_message,  # Use the user message as the task for planning
             }, stream_mode=["messages"],
             config={"recursion_limit": 10}):
+                output_token = []
                 try:
                     if s[1][1]['langgraph_node'] == 'solve':
+
                         yield s
+
+                    output_token.extend(s)
                 except Exception as e:
                     raise e
+            token_usage = calculate_token_usage(output_token)
+
         except Exception as e:
             print(traceback.format_exc())
             # print(e)
@@ -339,12 +357,14 @@ class LlmGraph:
         try:
             graph = graph.compile()
             # self._draw_graph(graph)
-            for s in graph.stream({
+            state = {
                 "conversation_id": conversation_id,
                 "message": user_message,
                 "user_id": user_id,
                 "task": user_message,  # Use the user message as the task for planning
-            }, stream_mode=["messages"],
+
+            }
+            for s in graph.stream(state, stream_mode=["messages"],
                     config={"recursion_limit": 10},
                 ):
                 try:

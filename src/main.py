@@ -31,24 +31,27 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 origins = [
-    # "http://localhost.tiangolo.com",
-    # "https://localhost.tiangolo.com",
-    # "http://localhost",
-    # "http://localhost:8000",
-    # "http://localhost:3000",
+    "http://localhost.tiangolo.com",
+    "https://localhost.tiangolo.com",
+    "http://localhost",
+    "http://localhost:8000",
+    "http://localhost:3000",
     "*"
 
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[
+    "*"
+],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
-app.add_middleware(JWTMiddleware)
+# app.add_middleware(JWTMiddleware)
 
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(Exception, default_error_handler)
@@ -56,5 +59,3 @@ app.add_exception_handler(Exception, default_error_handler)
 app.include_router(user_router.user_router)
 app.include_router(llm_router.llm_router)
 app.include_router(memory_router)
-
-

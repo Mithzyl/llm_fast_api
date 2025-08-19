@@ -34,7 +34,7 @@ class RedisClient:
         json_messages = json.dumps(json_messages)
         self.redis.set(conversation_id, json_messages)
 
-    def get_client(self):
+    def get_client(self) -> Redis:
         return self.redis
 
 def get_custom_redis_client() -> RedisClient:

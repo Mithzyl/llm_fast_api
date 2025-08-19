@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List
 
+from pydantic import BaseModel
+
 
 @dataclass
 class ChatSessionDetail:
@@ -14,8 +16,8 @@ class ChatSessionDetail:
     role: str
 
 
-@dataclass
-class ChatSession:
+
+class ChatSession(BaseModel):
     session_id: str
     title: str
     # content: List[ChatSessionDetail]

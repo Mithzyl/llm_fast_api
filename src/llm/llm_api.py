@@ -2,6 +2,7 @@ import json
 import os
 from os import environ
 
+import tiktoken
 from langchain_community.tools import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -74,6 +75,8 @@ class LlmApi:
                                          temperature=0.1)
 
         self.memory_client = get_memory_client()
+
+        self.tokenizer = tiktoken.get_encoding("o200k_base")
 
 
     @traceable
@@ -345,7 +348,46 @@ class LlmApi:
 
     @traceable
     def add_user_memory(self, state: dict) -> dict:
-        pass
+        assistant_response = state.get("result", {})
+        conversation_id = state.get("conversation_id")
+        human_prompt = state.get("message")
+        if assistant_response:
+            self.memory_client.add_memory_by_user_id(f"User: {human_prompt}\n Assistant: {assistant_response}", conversation_id)
+
+        return {"user_memory": ""}
+
+    @traceable
+    def prompt_rewrite(self, state: dict) -> dict:
+        """
+        Rewrite user prompt to be more clear and effective for LLM processing
+        Args:
+            state: Contains original message in state["message"]
+
+        Returns:
+            dict: Contains rewritten prompt in state["rewritten_prompt"]
+        """
+        message = state["message"]
+        rewriter_prompt = f"""
+        You are an expert at rewriting prompts to be more effective for large language models.
+        Your task is to improve the following prompt while maintaining its original intent:
+
+        Original Prompt: {message}
+
+        Guidelines for rewriting:
+        1. Clarify ambiguous terms or requests
+        2. Add relevant context if needed
+        3. Structure the prompt for better comprehension
+        4. Keep technical terms precise
+        5. Maintain original tone and intent
+        6. If the prompt is already well-structured, return it unchanged
+
+        Rewrite the prompt following these guidelines. Respond with just the rewritten prompt,
+        no additional commentary or formatting.
+        """
+        prompt_template = ChatPromptTemplate.from_messages([("user", rewriter_prompt)])
+        rewriter = prompt_template | self.provider
+        rewritten = rewriter.invoke({})
+        return {"rewritten_prompt": rewritten.content}
 
     @traceable
     def search_web(self, state: dict) -> dict:
@@ -659,7 +701,3 @@ class LlmApi:
     #
     #     res = rag_chain.invoke(query)
     #     return res
-
-
-
-

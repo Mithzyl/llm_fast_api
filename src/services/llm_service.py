@@ -1,7 +1,8 @@
-
+import json
 from time import time
 from typing import Any
 
+import requests
 from fastapi import HTTPException
 from sqlmodel import Session, desc, select
 from starlette.responses import JSONResponse
@@ -17,7 +18,7 @@ from models.model.llm_message import llm_message, llm_session
 from models.model.llm_model import LlmModel
 from models.model.user import User
 from utils.authenticate import verify_token
-from utils.util import generate_md5_id
+from utils.util import generate_md5_id, calculate_token_usage
 
 
 class LlmService:
@@ -53,8 +54,11 @@ class LlmService:
             print("conversation id ", conversation_id)
             raise e
 
+        messages = [message.to_dict() for message in messages]
 
-        return JSONResponse(status_code=200, content=messages)
+        response = JSONResponse(status_code=200, content=messages)
+
+        return response
 
     def get_message_by_message_id(self, message_id: object) -> JSONResponse:
         """
@@ -67,7 +71,9 @@ class LlmService:
         """
         message = self.session.exec(select(llm_message).filter(llm_message.id == message_id)).first()
 
-        return JSONResponse(status_code=200, content=message)
+        response = JSONResponse(status_code=200, content=message)
+
+        return json.load(response)
 
     def get_sessions_by_user_id(self, user_id) -> JSONResponse:
         """
@@ -86,7 +92,7 @@ class LlmService:
             session_dto = []
             for session in sessions:
                 dto = ChatSession(session_id=session.session_id, title=session.title)
-                session_dto.append(dto)
+                session_dto.append(dto.model_dump())
 
         except Exception as e:
             raise e
@@ -220,7 +226,6 @@ class LlmService:
 
             # memory sql saving
 
-
             self.add_chat_session(conversation)
             if history_conversations:
                 self.add_chat_session(conversation_latest_message)
@@ -330,8 +335,9 @@ class LlmService:
             conversation_id = generate_md5_id()
         try:
             # continued conversation
-            history_conversations = self.get_messages_by_conversation_id(conversation_id,
-                                                                         redis_client)["content"]
+            history_conversations = self.session.exec(select(llm_message)
+                                    .filter(llm_message.session_id == conversation_id)
+                                    .order_by(llm_message.create_time)).all()
 
             if len(history_conversations) > 1:
                 # get the conversation session
@@ -382,6 +388,7 @@ class LlmService:
 
                 yield content
             print(full_string)
+            llm_output_token = calculate_token_usage(full_string)
             # chat_state = llm_graph.run_chat_workflow(conversation_id,
             #                                          new_user_message,
             #                                          history_conversations,
@@ -435,6 +442,7 @@ class LlmService:
                 new_history_conversations.append(ai_message)
 
             # cost = self.cal_cost(chat_state_response, user.userid)
+
 
             # memory sql saving
 
