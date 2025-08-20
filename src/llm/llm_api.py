@@ -5,6 +5,7 @@ from os import environ
 import tiktoken
 from langchain_community.tools import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langsmith import traceable
 from typing import Dict, Optional, List, Any
@@ -47,9 +48,12 @@ class LlmApi:
     """
     def __init__(self, model: str,
                  temperature: float,
+                 tools: List[BaseTool],
+                 tool_map: dict,
                  base_url: Optional[str] = None,
                  api_key: Optional[str] = None,
-                 model_config_file: Optional[str] = '/src/model_url_config.json'):
+                 model_config_file: Optional[str] = '/src/model_url_config.json',
+                 ):
         self.model = model
         self.temperature = temperature
 
@@ -77,6 +81,22 @@ class LlmApi:
         self.memory_client = get_memory_client()
 
         self.tokenizer = tiktoken.get_encoding("o200k_base")
+
+        # Init tools
+        self.tools = tools
+        self.tool_map = tool_map
+
+
+    def _format_tools_for_prompt(self) -> str:
+        """
+        Format tool list to be strings
+        Returns:
+
+        """
+        tool_strings = []
+        for i, tool in enumerate(self.tools):
+            tool_strings.append(f"[{i+1}]: {tool.name}[input]: {tool.description}")
+        return "\n".join(tool_strings)
 
 
     @traceable
@@ -415,15 +435,13 @@ class LlmApi:
         print(f"[get_plan] Current node history: {state['node_history']}")
 
         task = state["task"]
-        prompt = """For the following task, make plans that can solve the problem step by step. For each plan, indicate \
+        # Get tool descriptions actively
+        tool_prompt_strings = self._format_tools_for_prompt()
+        prompt = f"""For the following task, make plans that can solve the problem step by step. For each plan, indicate \
         which external tool together with tool input to retrieve evidence.
 
         Tools can be one of the following:
-        (1) Google[input]: Worker that searches results from Google. Useful when you need to find short
-        and succinct answers about a specific topic. The input should be a search query.
-        (2) LLM[input]: A pretrained LLM like yourself. Useful when you need to act with general
-        world knowledge and common sense. Prioritize it when you are confident in solving the problem
-        yourself. Input can be any instruction.
+        {tool_prompt_strings}
 
         Your response should be in JSON format with the following structure for each step:
         {{
@@ -457,7 +475,7 @@ class LlmApi:
         ]
 
 
-        Note: You can only call Google tool once in the plan.
+        Note: You can only call each tool once in the plan.
 
         Task: {task}"""
 
@@ -477,7 +495,7 @@ class LlmApi:
                 steps.append((
                     formatted_step.plan,
                     formatted_step.step,
-                    formatted_step.tool.split('[')[0],  # Extract tool name
+                    formatted_step.tool.split('[')[0].strip(),  # Extract tool name
                     formatted_step.query  # Extract input
                 ))
         except Exception as e:
@@ -503,33 +521,29 @@ class LlmApi:
         evidence_store = {}  # Store evidence from each step
         final_results = []
 
-        for step_num, (plan, step_id, tool, instruction) in enumerate(steps):
+        for step_num, (plan, step_id, tool_name, instruction) in enumerate(steps):
             # Replace any #E references in the instruction with actual evidence
             for prev_step in range(step_num):
                 # instruction = instruction.replace(f"Step#{prev_step}",
                 #                                evidence_store.get(f"Step#{prev_step}", ""))
                 instruction = evidence_store.get(f"Step#{prev_step}", "")
 
-            # Execute the appropriate tool
-            if tool == "Google":
-                search_tool = TavilySearchResults(max_results=5)
-                search_results = search_tool.invoke({"query": instruction})
-                evidence = []
-                print("Debug evidence")
-                print(f"search results: {search_results}")
-                for result in search_results:
-                    print(result)
-                    evidence.append(result['content'])
-                
-            elif tool == "LLM":
-                prompt = ChatPromptTemplate.from_messages([
-                    ("system", "You are an AI assistant helping with a multi-step task."),
-                    ("user", f"Plan: {plan}\nInstruction: {instruction}")
-                ])
-                chain = prompt | self.provider
-                evidence = chain.invoke({})
-                evidence = evidence.content if hasattr(evidence, 'content') else str(evidence)
-            
+            if tool_name in self.tool_map:
+                try:
+                    print(f"Executing tool: {tool_name} with input: {instruction}")
+                    # get tool object
+                    tool_to_execute = self.tool_map[tool_name]
+                    # 动态调用工具
+                    # 假设所有工具都接受一个名为 'query' 或类似的单个字符串输入
+                    # 如果工具的输入模式更复杂，您可能需要相应地调整 invoke 的参数
+                    result = tool_to_execute.invoke({"query": instruction})
+                    evidence = str(result)
+                except Exception as e:
+                    evidence = f"Error executing tool {tool_name}: {e}"
+                else:
+                    # 如果计划中的工具在我们的列表中找不到，则返回错误
+                    evidence = f"Error: Tool '{tool_name}' not found in the available tools."
+
             # Store evidence for this step
             evidence_key = f"Step#{step_num}"
             evidence_store[evidence_key] = evidence
@@ -537,7 +551,7 @@ class LlmApi:
             final_results.append({
                 "plan": plan,
                 "step": step_id,
-                "tool": tool,
+                "tool": tool_name,
                 "evidence": evidence
             })
 

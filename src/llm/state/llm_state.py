@@ -311,7 +311,8 @@ class LlmGraph:
                     output_token.extend(s)
                 except Exception as e:
                     raise e
-            token_usage = calculate_token_usage(output_token)
+            # TODO: Log input and output token counts after LLM interaction finishes.
+            # token_usage = calculate_token_usage(output_token)
 
         except Exception as e:
             print(traceback.format_exc())

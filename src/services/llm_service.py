@@ -378,7 +378,7 @@ class LlmService:
             # llm api call
             full_string = ""
             chat_id = generate_md5_id()
-            async for state in llm_graph.run_test_workflow(conversation_id,
+            async for state in llm_graph.run_integrated_workflow(conversation_id,
                                                                  new_user_message,
                                                                  history_conversations,
                                                                  user.userid):

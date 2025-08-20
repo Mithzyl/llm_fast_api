@@ -4,15 +4,17 @@ import yaml
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from config.error_config import http_exception_handler, default_error_handler
+from llm.mcp.mcp_tool_manager import MCPToolManager
 from middleware.jwt_middleware import JWTMiddleware
 from routers import user_router, llm_router
 from db.db import create_db_and_tables, create_db
 from routers.memory_router import memory_router
 from utils.util import set_api_key_environ, find_root_dir
 
-
+@asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Application Startup")
     try:
@@ -21,11 +23,32 @@ async def lifespan(app: FastAPI):
         # create_db_and_tables()
     except Exception as e:
         db_name = "test.db"
-        print(e)
+        print(f"DB setup error: {e}, creating {db_name}")
         create_db(db_name)
+
+    # Initialize LLM and Tooling Resources
+    try:
+        # Configure MCP client
+        mcp_server_configs = {
+            "internal_tools": {
+                "command": ["python", "/absolute/path/to/your/mcp_tools_server.py"],  # <-- Use absolute path
+                "transport": "stdio",
+            },
+            "external_crm_tools": {
+                "transport": "streamable_http",
+                "url": "https://mcp.some-provider.com/v1/",  # <-- Replace with real URL
+                "headers": {"Authorization": "Bearer YOUR_EXTERNAL_API_KEY"}  # <-- Replace with real key
+            }
+        }
+        mcp_server_manager = MCPToolManager(mcp_server_configs)
+        await mcp_server_manager.load()
+    except Exception as e:
+        print(e)
+
 
     yield
     print("Application Shutdown")
+
 
 
 app = FastAPI(lifespan=lifespan)
