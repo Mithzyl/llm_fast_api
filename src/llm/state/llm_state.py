@@ -289,26 +289,21 @@ class LlmGraph:
         graph.add_edge("tool_execution", "solve")
         graph.add_edge("solve", END)
 
-
         try:
             graph = graph.compile()
-            # self._draw_graph(graph)
+            state = {
+                    "conversation_id": conversation_id,
+                    "message": user_message,
+                    "user_id": user_id,
+                    "task": user_message,
+                }
 
-
-            for s in graph.stream({
-                "conversation_id": conversation_id,
-                "message": user_message,
-                "user_id": user_id,
-                "task": user_message,  # Use the user message as the task for planning
-            }, stream_mode=["messages"],
-            config={"recursion_limit": 10}):
-                output_token = []
+            async for s in graph.astream(state, stream_mode=["messages"],
+                    config={"recursion_limit": 10},
+                ):
                 try:
                     if s[1][1]['langgraph_node'] == 'solve':
-
                         yield s
-
-                    output_token.extend(s)
                 except Exception as e:
                     raise e
             # TODO: Log input and output token counts after LLM interaction finishes.
@@ -365,7 +360,7 @@ class LlmGraph:
                 "task": user_message,  # Use the user message as the task for planning
 
             }
-            for s in graph.stream(state, stream_mode=["messages"],
+            async for s in graph.astream(state, stream_mode=["messages"],
                     config={"recursion_limit": 10},
                 ):
                 try:
@@ -474,7 +469,3 @@ class LlmGraph:
     #     else:
     #         # We are still executing tasks, loop back to the "tool" node
     #         return "tool"
-
-
-
-

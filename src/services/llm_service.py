@@ -382,7 +382,7 @@ class LlmService:
                                                                  new_user_message,
                                                                  history_conversations,
                                                                  user.userid):
-            # async for state in PlannerWorkflow().stream_token(new_user_message):
+                # async for state in PlannerWorkflow().stream_token(new_user_message):
                 content = state[1][0].content
                 full_string += content
 
@@ -476,4 +476,3 @@ class LlmService:
         conversation = self.session.exec(select(llm_session)
                                          .where(llm_session.session_id == conversation_id)).first()
         return JSONResponse(status_code=200, content=conversation)
-

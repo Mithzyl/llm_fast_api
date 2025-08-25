@@ -30,6 +30,8 @@ from llm.llm_provider import OpenAIProvider
 from llm.state.planner_state import ReWOO
 
 from utils.util import draw_lang_graph_flow
+from llm.mcp.mcp_tool_manager import MCPToolManager
+
 
 class PlanFormatter(BaseModel):
     plan: str = Field(description=f"""plans that are analyzed and broken down from a
@@ -41,6 +43,7 @@ class PlanFormatter(BaseModel):
     step: str = Field(description="the sequence number of current step, example: Step#1, Step#2")
     query: str = Field(description="The instruction or the query")
 
+
 class LlmApi:
     """
     This class is responsible for managing execution functions within lang graph nodes,
@@ -48,14 +51,14 @@ class LlmApi:
     """
     def __init__(self, model: str,
                  temperature: float,
-                 tools: List[BaseTool],
-                 tool_map: dict,
+                 mcp_tool_manager: MCPToolManager,
                  base_url: Optional[str] = None,
                  api_key: Optional[str] = None,
                  model_config_file: Optional[str] = '/src/model_url_config.json',
                  ):
         self.model = model
         self.temperature = temperature
+        self.mcp_tool_manager = mcp_tool_manager
 
         self.title_llm_url = os.environ.get('llm_base_url')
         self.title_api_key = os.environ.get('api_key')
@@ -76,15 +79,15 @@ class LlmApi:
         self.title_provider = ChatOpenAI(base_url=self.title_llm_url,
                                          api_key=self.title_api_key,
                                          model="qwen2:0.5b",
-                                         temperature=0.1)
+                                         temperature=0.9)
 
         self.memory_client = get_memory_client()
 
         self.tokenizer = tiktoken.get_encoding("o200k_base")
 
-        # Init tools
-        self.tools = tools
-        self.tool_map = tool_map
+        # Init tools from MCPToolManager
+        self.tools = self.mcp_tool_manager.tools
+        self.tool_map = self.mcp_tool_manager.tool_map
 
 
     def _format_tools_for_prompt(self) -> str:
@@ -426,157 +429,91 @@ class LlmApi:
 
         return {"web_search_result": search_result}
 
-    def get_plan(self, state: dict) -> dict:
-        # Initialize node history if not present
-        if "node_history" not in state:
-            state["node_history"] = []
-
-        state["node_history"].append("plan")
-        print(f"[get_plan] Current node history: {state['node_history']}")
-
+    async def get_plan(self, state: dict) -> dict:
+        """
+        Invokes the 'get_plan' MCP tool.
+        """
         task = state["task"]
-        # Get tool descriptions actively
-        tool_prompt_strings = self._format_tools_for_prompt()
-        prompt = f"""For the following task, make plans that can solve the problem step by step. For each plan, indicate \
-        which external tool together with tool input to retrieve evidence.
+        get_plan_tool = self.tool_map.get("get_plan")
+        if not get_plan_tool:
+            raise ValueError("MCP tool 'get_plan' not found in tool_map.")
 
-        Tools can be one of the following:
-        {tool_prompt_strings}
+        # Serialize the list of tools to a JSON string
+        tools_for_prompt = [{"name": tool.name, "description": tool.description} for tool in self.tools]
+        tools_json = json.dumps(tools_for_prompt)
 
-        Your response should be in JSON format with the following structure for each step:
-        {{
-            "plan": "Detailed description of the plan",
-            "tool": "Tool",
-            "step": "Step#N",
-            "query": "Query strings"
-        }}
-        Do not wrap the json result in markdown format or json markers
-        
-        Example:
-        [
-            {{
-                "plan": "Understand the concept of black holes, their formation, and properties to ensure foundational knowledge.",
-                "tool": "Google",
-                "step": "Step#1",
-                "query": "Latest discoveries about black holes in astrophysics."
-            }},
-            {{
-                "plan": "Research the latest discoveries or notable black hole studies to find up-to-date and relevant examples.",
-                "tool": "LLM",
-                "step": "Step#2",
-                "query": "Explain the concept of black holes, their formation, and key properties."
-            }},
-            {{
-                "plan": "Based on the collected information, summarize the findings and explain how black holes influence their surroundings.",
-                "tool": "LLM",
-                "step": "Step#3",
-                "query": "Summarize the latest findings about black holes and their impact on their surroundings."
-            }}
-        ]
-
-
-        Note: You can only call each tool once in the plan.
-
-        Task: {task}"""
-
-        prompt_template = ChatPromptTemplate.from_messages([("user", prompt)])
-        planner = prompt_template | self.provider
-        result = planner.invoke({"task": task})
-
-        # Parse the JSON response into PlanFormatter objects
-        steps = []
+        # The MCP tool returns a JSON string, which we need to parse.
+        plan_string = await get_plan_tool.ainvoke({"task": task, "tools_json": tools_json})
         try:
-            # Assuming the response is a list of JSON objects
-            # plan_steps = json.loads(result.content.replace("```json", "").replace("```", "").strip())
-            plan_steps = json.loads(result.content.strip())
+            plan_steps = json.loads(plan_string)
+            steps = []
             for step in plan_steps:
                 formatted_step = PlanFormatter(**step)
-                # Convert to tuple format expected by the rest of the code
                 steps.append((
                     formatted_step.plan,
                     formatted_step.step,
-                    formatted_step.tool.split('[')[0].strip(),  # Extract tool name
-                    formatted_step.query  # Extract input
+                    formatted_step.tool.split('[')[0].strip(),
+                    formatted_step.query
                 ))
-        except Exception as e:
-            print(f"Error parsing plan: {e}")
-            steps = []
-
-        return {"steps": steps, "plan_string": result.content}
+            return {"steps": steps, "plan_string": plan_string}
+        except json.JSONDecodeError as e:
+            print(f"Error parsing plan from MCP tool: {e}")
+            return {"steps": [], "plan_string": "[]"}
 
     @traceable
-    def tool_execution(self, state: dict) -> dict:
-        """Execute tools according to the plan and collect evidence for each step.
-        
-        Args:
-            state: Contains steps, plan_string, and other context
-            
-        Returns:
-            Dictionary containing execution results and evidence
+    async def tool_execution(self, state: dict) -> dict:
         """
-        state["node_history"].append("tool")
-        print(f"[tool_execution] Current node history: {state['node_history']}")
-
+        Executes the plan's steps locally using the tool_map.
+        """
         steps = state["steps"]
-        evidence_store = {}  # Store evidence from each step
-        final_results = []
-
-        for step_num, (plan, step_id, tool_name, instruction) in enumerate(steps):
-            # Replace any #E references in the instruction with actual evidence
-            for prev_step in range(step_num):
-                # instruction = instruction.replace(f"Step#{prev_step}",
-                #                                evidence_store.get(f"Step#{prev_step}", ""))
-                instruction = evidence_store.get(f"Step#{prev_step}", "")
-
+        results = []
+        for step in steps:
+            plan, step_id, tool_name, query = step
             if tool_name in self.tool_map:
+                tool_to_use = self.tool_map[tool_name]
                 try:
-                    print(f"Executing tool: {tool_name} with input: {instruction}")
-                    # get tool object
-                    tool_to_execute = self.tool_map[tool_name]
-                    # 动态调用工具
-                    # 假设所有工具都接受一个名为 'query' 或类似的单个字符串输入
-                    # 如果工具的输入模式更复杂，您可能需要相应地调整 invoke 的参数
-                    result = tool_to_execute.invoke({"query": instruction})
-                    evidence = str(result)
+                    # Assuming tools are synchronous for now
+                    evidence = await tool_to_use.ainvoke({"query": query})
+                    results.append({
+                        "plan": plan,
+                        "step": step_id,
+                        "tool": tool_name,
+                        "evidence": evidence
+                    })
                 except Exception as e:
-                    evidence = f"Error executing tool {tool_name}: {e}"
-                else:
-                    # 如果计划中的工具在我们的列表中找不到，则返回错误
-                    evidence = f"Error: Tool '{tool_name}' not found in the available tools."
-
-            # Store evidence for this step
-            evidence_key = f"Step#{step_num}"
-            evidence_store[evidence_key] = evidence
-            
-            final_results.append({
-                "plan": plan,
-                "step": step_id,
-                "tool": tool_name,
-                "evidence": evidence
-            })
-
-        return {
-            "results": final_results,
-        }
+                    results.append({
+                        "plan": plan,
+                        "step": step_id,
+                        "tool": tool_name,
+                        "evidence": f"Error executing tool: {e}"
+                    })
+            else:
+                results.append({
+                    "plan": plan,
+                    "step": step_id,
+                    "tool": tool_name,
+                    "evidence": f"Tool '{tool_name}' not found."
+                })
+        return {"results": results}
 
     def solve(self, state: dict) -> dict:
         """
-        Final node in the planner workflow that generates the solution
+        Generates the solution based on the evidence.
+        This method now returns a streaming-capable chain.
         """
         state["node_history"].append("solve")
         print(f"[solve] Current node history: {state['node_history']}")
         solve_prompt = """Solve the following task or problem. To solve the problem, we have made step-by-step Plan and \
-            retrieved corresponding Evidence to each Plan. Use them with caution since long evidence might \
-            contain irrelevant information.
+                    retrieved corresponding Evidence to each Plan. Use them with caution since long evidence might \
+                    contain irrelevant information.
 
-            {plan}
+                    {plan}
 
-            Now solve the question or task according to provided Evidence above. Respond with the answer
-            according to plan results and respond in markdown format.
+                    Now solve the question or task according to provided Evidence above. Respond with the answer
+                    according to plan results and respond in markdown format.
 
-            Task: {task}
-            """
-
+                    Task: {task}
+                    """
 
         steps = state["results"]
         plan = ""
@@ -589,6 +526,7 @@ class LlmApi:
         try:
 
             result = self.provider.invoke(prompt_template)
+            print(result)
             return {"result": result}
         except Exception as e:
             print(e)
@@ -631,87 +569,3 @@ class LlmApi:
 
         return {"rag_context": None,
                 "call_web_search": call_web_search}
-
-
-
-
-    # def RAG_chat(self, vectorstore, query, searches):
-    #     model = self.model
-    #     llm = ChatOpenAI(model=model, temperature=self.temperature, api_key=[])
-    #     PROMPT_TEMPLATE = """
-    #     Human: You are an AI assistant, and provides answers to questions by using fact based and statistical information when possible.
-    #     Use the following pieces of information to provide a concise answer to the question enclosed in <question> tags.
-    #     The response must restrictly follow the limitations, e.g. if a condition (e.g. country) is provided,
-    #     only give answers with the given condition.
-    #
-    #
-    #     <context>
-    #     {context}
-    #     </context>
-    #
-    #     <question>
-    #     {question}
-    #     </question>
-    #     Sometimes the question is implicit to retrieve information from the context, if so, try to analyze the information in the context
-    #     and see if it meets the goal.
-    #
-    #
-    #     The response should be specific and use statistics or numbers when possible.
-    #
-    #     Assistant:"""
-    #
-    #     # Create a PromptTemplate instance with the defined template and input variables
-    #     prompt = PromptTemplate(
-    #         template=PROMPT_TEMPLATE, input_variables=["context", "question", "country"]
-    #     )
-    #     # Convert the vector store to a retriever
-    #     retriever = vectorstore.as_retriever(search_kwargs={"score_threshold": 0.5,
-    #                                                         "k": 50})
-    #
-    #
-    #     # Define a function to format the retrieved documents
-    #     def format_docs(docs):
-    #         return "\n\n".join(doc for doc in docs.get('rerank_passages', []))
-    #
-    #     def format_rerank(docs):
-    #         return "\n\n".join(doc.page_content for doc in docs)
-    #
-    #     def inspect(state):
-    #         for k, v in state.items():
-    #             print(v)
-    #         return state
-    #
-    #     ranker_args = {'model': 'ms-marco-MultiBERT-L-12', 'top_n': 10}
-    #     ranker = Ranker(model_name='ms-marco-MultiBERT-L-12')
-    #
-    #     reranker_args = {'top_n': 5, 'device': 'cpu'}  # 修改为本地路径
-    #     reranker = RerankerModel(model_name_or_path="maidalun1020/bce-reranker-base_v1")
-    #     bce_reranker = None
-    #     compressor = FlashrankRerank(client=ranker, **ranker_args)
-    #
-    #     compression_retriever = ContextualCompressionRetriever(
-    #         base_compressor=bce_reranker, base_retriever=retriever
-    #     )
-    #
-    #     sentence_pairs = [[query, passage.page_content] for passage in searches]
-    #     # scores = reranker.compute_score(sentence_pairs)
-    #     # rerank_results = reranker.rerank(query, [passage.page_content for passage in searches])
-    #
-    #     # reranked_content = format_docs(rerank_results)
-    #
-    #
-    #     rag_chain = (
-    #             {"context": compression_retriever | format_rerank, "question": RunnablePassthrough()}
-    #             | RunnableLambda(inspect)
-    #             | prompt
-    #             | llm
-    #             | StrOutputParser()
-    #     )
-    #
-    #     # rag_chain.get_graph().print_ascii()
-    #
-    #     # Invoke the RAG chain with a specific question and retrieve the response
-    #     # res = rag_chain.invoke({"context": reranked_content, "question": query})
-    #
-    #     res = rag_chain.invoke(query)
-    #     return res

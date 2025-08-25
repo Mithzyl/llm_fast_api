@@ -26,3 +26,4 @@ requests~=2.32.3
 aioredis~=2.0.1
 mem0ai
 langchain-mcp-adapters
+duckduckgo-search

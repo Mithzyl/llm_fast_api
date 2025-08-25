@@ -4,7 +4,6 @@ from sqlmodel import Session
 
 from db.db import get_session
 from llm.llm_api import LlmApi
-from llm.mcp import mcp_tool_manager
 from llm.state.llm_state import LlmGraph
 from models.param.message_param import ChatCreateParam
 from services.llm_service import LlmService
@@ -29,9 +28,10 @@ def get_llm_graph(llm_param: ChatCreateParam) -> LlmGraph:
     else:
         model = llm_param.model
 
+    from main import mcp_server_manager
+
     llm_api = LlmApi(model=model,
                      temperature=llm_param.temperature,
-                     tools=mcp_tool_manager.tools,
-                     tool_map=mcp_tool_manager.tool_map)
+                     mcp_tool_manager=mcp_server_manager)
 
     return LlmGraph(llm_api)

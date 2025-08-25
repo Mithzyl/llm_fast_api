@@ -14,8 +14,11 @@ from db.db import create_db_and_tables, create_db
 from routers.memory_router import memory_router
 from utils.util import set_api_key_environ, find_root_dir
 
+mcp_server_manager = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global mcp_server_manager
     print("Application Startup")
     try:
         set_api_key_environ("./key.json")
@@ -28,28 +31,31 @@ async def lifespan(app: FastAPI):
 
     # Initialize LLM and Tooling Resources
     try:
+        print("Loading mcp servers")
         # Configure MCP client
         mcp_server_configs = {
-            "internal_tools": {
-                "command": ["python", "/absolute/path/to/your/mcp_tools_server.py"],  # <-- Use absolute path
+            # "internal_tools": {
+            #     "command": "python",  # <-- Use absolute path,
+            #     "args": ["/Users/mith/Desktop/project/llm_fast_api/src/llm/mcp/math.py"],
+            #     "transport": "stdio",
+            # },
+            "agent_tools": {
+                "command": "python",
+                "args": ["/Users/mith/Desktop/project/llm_fast_api/src/llm/mcp/mcp_tools.py"],
                 "transport": "stdio",
             },
-            "external_crm_tools": {
-                "transport": "streamable_http",
-                "url": "https://mcp.some-provider.com/v1/",  # <-- Replace with real URL
-                "headers": {"Authorization": "Bearer YOUR_EXTERNAL_API_KEY"}  # <-- Replace with real key
-            }
+            # "external_crm_tools": {
+            #     "transport": "streamable_http",
+            #     "url": "https://mcp.some-provider.com/v1/",  # <-- Replace with real URL
+            #     "headers": {"Authorization": "Bearer YOUR_EXTERNAL_API_KEY"}  # <-- Replace with real key
+            # }
         }
         mcp_server_manager = MCPToolManager(mcp_server_configs)
         await mcp_server_manager.load()
     except Exception as e:
         print(e)
-
-
     yield
     print("Application Shutdown")
-
-
 
 app = FastAPI(lifespan=lifespan)
 
@@ -74,7 +80,6 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
-# app.add_middleware(JWTMiddleware)
 
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(Exception, default_error_handler)
