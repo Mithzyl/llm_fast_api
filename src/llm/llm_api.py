@@ -167,102 +167,24 @@ class LlmApi:
             print(e)
             raise e
 
-    def chat1(self, state: dict, model: Optional[str] = None) -> dict[str, dict]:
-        """
-        Args:
-            state: langgraph state
-            model: selected model
-
-        Returns:
-            state dict after adding the response from AI and extracted memory
-        """
-        model = model if model else self.model
-
-        user_message = state["message"][0].content
-        user_id = state["user_id"]
-        history_messages = state["history_messages"]
-        conversation_id = state["conversation_id"]
-
-        system_template = f"""
-                            You are an assistant that helps with daily questions, english, math and coding\n
-                            You also may get memories or chat histories input,
-                            please respond to the question from the user.\n
-                            Input:\n
-                            [USER_MEMORY_BEGIN] (if any)\n
-                            some key user figures that can be helpful for this round of conversation\n
-                            [USER_MEMORY_END] (if any)\n
-
-                            [CONVERSATION_MEMORY_BEGIN] (if any)\n
-                            some key inference from previous history messages that
-                            can be helpful for this round of conversation\n
-                            [CONVERSATION_MEMORY_END] (if any)\n
-
-                            [HISTORY_BEGIN]\n
-                            histories messages containing both user questions and your response\n
-                            [HISTORY_END]\n
-                            user's new query
-                           """
-        prompt_template = [
-            {"role": "system", "content": system_template}
-        ]
-        try:
-            # retrieve memory
-            user_memory = self.memory_client.search_memory_by_user_id(user_message, user_id)
-            if user_memory:
-                memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
-                for memory in user_memory:
-                    memory_prompt += f"- {memory['memory']}\n"
-                memory_prompt += "[USER_MEMORY_END]"
-                prompt_template.append({"role": "user", "content": memory_prompt})
-
-            conversation_memory = self.memory_client.search_memory_by_conversation_id(user_message,
-                                                                                      conversation_id=conversation_id)
-            if user_memory:
-                memory_prompt = "Relevant user information from previous conversations:\n [USER_MEMORY_BEGIN]"
-                for memory in user_memory:
-                    memory_prompt += f"- {memory['memory']}\n"
-                memory_prompt += "[USER_MEMORY_END]"
-                prompt_template.append({"role": "user", "content": memory_prompt})
-
-            if conversation_memory:
-                memory_prompt = "Relevant key information from previous conversations:\n [CONVERSATION_MEMORY_BEGIN]"
-                for memory in conversation_memory:
-                    memory_prompt += f"- {memory['memory']}\n"
-                memory_prompt += "[CONVERSATION_MEMORY_END]"
-                prompt_template.append({"role": "user", "content": memory_prompt})
-
-            if history_messages:
-                prompt_template.append({"role": "user", "content": "full chat history records:\n [HISTORY_BEGIN]"})
-                for history in history_messages:
-                    history_message = {"role": history.role, "content": history.message}
-                    prompt_template.append(history_message)
-                prompt_template.append({"role": "user", "content": "\n [HISTORY_END]"})
-
-            prompt_template.append({"role": "user", "content": f"query: {user_message}"})
-
-            response = self.provider.get_response(prompt_template, model)
-
-            conversation_memory = self.memory_client.add_memory_by_conversation_id(
-                f"User: {user_message}\n Assistant: {response['message']}",
-                conversation_id=conversation_id)
-
-            # store the memory
-            user_memory = self.memory_client.add_memory_by_user_id(f"User: {user_message}\n",
-                                                                   user_id=user_id)
-
-            return {"response": response}
-        except Exception as e:
-            print(e)
-            raise e
 
     @traceable
     def construct_prompt(self, state: dict) -> dict:
         user_memory = state.get("user_memory", None)
         conversation_memory = state.get("conversation_memory", None)
-        user_message = state["message"][0].content
+        user_message = state["task"]
         history_messages = state.get("history_messages", None)
         web_search_result = state.get("web_search_result", None)
         retrieved_context = state.get("rag_context", None)
+        tool_results = state.get("results", None)
+
+        plan_string = ""
+        if tool_results:
+            plan_string += "[TOOL_RESULTS_BEGIN]\n"
+            for _, step in enumerate(tool_results):
+                _plan, step_id, tool, instruction = step['plan'], step['step'], step['tool'], step['evidence']
+                plan_string += f"Plan: {_plan}\n{step_id} = {tool}[{instruction}]\n"
+            plan_string += "[TOOL_RESULTS_END]\n"
 
         system_template = f"""
                             You are an assistant that helps with daily questions, english, math and coding\n
@@ -286,6 +208,8 @@ class LlmApi:
                             [WEB_SEARCH_RESULT_BEGIN]\n
                             web search result messages containing information collected from search engine\n
                             [WEB_SEARCH_RESULT_END]\n
+
+                            {plan_string}
                             user's new query
                            """
         prompt_template = [SystemMessage(system_template)]
@@ -333,7 +257,7 @@ class LlmApi:
 
             prompt_template.append(HumanMessage(retrieved_context_prompt))
 
-        # prompt_template.append(HumanMessage("query\n" + user_message))
+        prompt_template.append(HumanMessage("query\n" + user_message))
 
         return {"prompt_template": prompt_template}
 
@@ -492,28 +416,9 @@ class LlmApi:
         """
         state["node_history"].append("solve")
         print(f"[solve] Current node history: {state['node_history']}")
-        solve_prompt = """Solve the following task or problem. To solve the problem, we have made step-by-step Plan and \
-                    retrieved corresponding Evidence to each Plan. Use them with caution since long evidence might \
-                    contain irrelevant information.
-
-                    {plan}
-
-                    Now solve the question or task according to provided Evidence above. Respond with the answer
-                    according to plan results and respond in markdown format.
-
-                    Task: {task}
-                    """
-
-        steps = state["results"]
-        plan = ""
-        for _, step in enumerate(steps):
-            _plan, step_id, tool, instruction = step['plan'], step['step'], step['tool'], step['evidence']
-            plan += f"Plan: {_plan}\n{step_id} = {tool}[{instruction}]\n"
-        prompt = solve_prompt.format(plan=plan, task=state["task"])
+        
         prompt_template = state["prompt_template"]
-        prompt_template.append(SystemMessage(prompt))
         try:
-
             result = self.provider.invoke(prompt_template)
             print(result)
             return {"result": result}

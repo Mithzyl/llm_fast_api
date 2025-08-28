@@ -280,13 +280,11 @@ class LlmGraph:
         graph.add_edge("create_input_node", "search_conversation_memory")
         graph.add_edge("search_user_memory", "join_result")
         graph.add_edge("search_conversation_memory", "join_result")
-        graph.add_edge("join_result", "construct_prompt")
-
-
         # Continue with memory retrieval path
-        graph.add_edge("construct_prompt", "get_plan")
+        graph.add_edge("join_result", "get_plan")
         graph.add_edge("get_plan", "tool_execution")
-        graph.add_edge("tool_execution", "solve")
+        graph.add_edge("tool_execution", "construct_prompt")
+        graph.add_edge("construct_prompt", "solve")
         graph.add_edge("solve", END)
 
         try:
