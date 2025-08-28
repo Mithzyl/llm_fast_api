@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from db.milvus.milvus_client import connect_to_milvus
 from dependencies.memory_dependency import get_memory_client
+from llm.llm_factory import get_llm_provider
 from llm.llm_provider import OpenAIProvider
 from llm.state.planner_state import ReWOO
 
@@ -60,26 +61,14 @@ class LlmApi:
         self.temperature = temperature
         self.mcp_tool_manager = mcp_tool_manager
 
-        self.title_llm_url = os.environ.get('llm_base_url')
-        self.title_api_key = os.environ.get('api_key')
-
-        with open(environ["ROOT_DIR"] + model_config_file, 'r') as f:
-            self.model_list = json.load(f)
-
-        if self.model_list:
-            for key in self.model_list.keys():
-                if key in model:
-                    self.llm_base_url = self.model_list[key]['base_url']
-                    self.api_key = self.model_list[key]['api_key']
-        else:
-            self.llm_base_url = base_url if base_url else os.environ.get('llm_base_url')
-            self.api_key = api_key if api_key else os.environ.get('api_key')
-
-        self.provider = ChatOpenAI(base_url=self.llm_base_url, api_key=self.api_key, model=self.model)
-        self.title_provider = ChatOpenAI(base_url=self.title_llm_url,
-                                         api_key=self.title_api_key,
-                                         model="qwen2:0.5b",
-                                         temperature=0.9)
+        self.provider = get_llm_provider(
+            model=self.model,
+            temperature=self.temperature,
+            base_url=base_url,
+            api_key=api_key,
+            model_config_file=model_config_file
+        )
+        self.title_provider = get_llm_provider(model="qwen3:0.6b", temperature=0.9)
 
         self.memory_client = get_memory_client()
 
@@ -115,7 +104,7 @@ class LlmApi:
         """
         user_message = state["task"]
         system_template = f"""
-                            You need to generate a title by using the input in 10 words.
+                            You need to generate a title by using the input in 10 words as a sentence.
                           """
         prompt_template = ChatPromptTemplate.from_messages([
             SystemMessage(system_template),

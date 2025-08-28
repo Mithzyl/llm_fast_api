@@ -1,29 +1,28 @@
 import json
 import os
 from typing import List, Dict, Any
+import sys
+
+# Add the 'src' directory to the Python path to resolve module imports
+src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+# Set ROOT_DIR environment variable
+if "ROOT_DIR" not in os.environ:
+    os.environ["ROOT_DIR"] = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 from duckduckgo_search import DDGS
+from langchain.chains.summarize.refine_prompts import prompt_template
 from langsmith import traceable
 from mcp.server.fastmcp import FastMCP
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage
+from llm.llm_factory import get_llm_provider
 
 mcp = FastMCP("AgentTools")
 
-# def get_llm_provider():
-#     # In a real application, you'd fetch these from a config file or env vars
-#     return ChatOpenAI(
-#         model=os.environ.get("OPENAI_MODEL_NAME", "gpt-3.5-turbo"),
-#         temperature=0.7,
-#         base_url=os.environ.get("OPENAI_API_BASE"),
-#         api_key=os.environ.get("OPENAI_API_KEY")
-#     )
-
-llm_provider = ChatOpenAI(base_url="https://api.deepseek.com/v1",
-                          api_key="sk-72ba740962274eb99eed4402443dde5d",
-                          model='deepseek-chat')
-
+llm_provider = get_llm_provider(model="deepseek-chat")
 
 @mcp.tool()
 @traceable
@@ -69,7 +68,9 @@ def get_plan(task: str, tools_json: str) -> str:
     ]
     
     Note: You can only select the tools within the tools provided, and the current tool is get plan tool, so you don't
-        need to plan this tool again. So does solve node
+        need to plan this tool again. So does solve node.
+        When you think the task is related to complicated problems related to math, coding, and thesis writing, you need
+        to think about taking usage of prompt rewriting
     """
 
     prompt = ChatPromptTemplate.from_messages([

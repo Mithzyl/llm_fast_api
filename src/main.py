@@ -34,16 +34,17 @@ async def lifespan(app: FastAPI):
         print("Loading mcp servers")
         # Configure MCP client
         mcp_server_configs = {
-            # "internal_tools": {
-            #     "command": "python",  # <-- Use absolute path,
-            #     "args": ["/Users/mith/Desktop/project/llm_fast_api/src/llm/mcp/math.py"],
-            #     "transport": "stdio",
-            # },
+
             "agent_tools": {
                 "command": "python",
                 "args": ["/Users/mith/Desktop/project/llm_fast_api/src/llm/mcp/mcp_tools.py"],
                 "transport": "stdio",
             },
+            "llm_tools": {
+                "command": "python",
+                "args": ["/Users/mith/Desktop/project/llm_fast_api/src/llm/mcp/generation_tools.py"],
+                "transport": "stdio",
+            }
             # "external_crm_tools": {
             #     "transport": "streamable_http",
             #     "url": "https://mcp.some-provider.com/v1/",  # <-- Replace with real URL
