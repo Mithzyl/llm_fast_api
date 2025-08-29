@@ -270,7 +270,16 @@ class LlmApi:
 
     @traceable
     def add_conversation_memory(self, state: dict) -> dict:
-        pass
+        assistant_response = state.get("result", [])
+        conversation_id = state.get("conversation_id")
+        human_prompt = state.get("task")
+        if assistant_response and conversation_id and human_prompt:
+            final_response_content = assistant_response[-1].content
+            self.memory_client.add_memory_by_conversation_id(
+                f"User: {human_prompt}\nAssistant: {final_response_content}",
+                conversation_id=conversation_id
+            )
+        return {}
 
     @traceable
     def search_user_memory(self, state: dict) -> dict:
@@ -284,13 +293,16 @@ class LlmApi:
 
     @traceable
     def add_user_memory(self, state: dict) -> dict:
-        assistant_response = state.get("result", {})
-        conversation_id = state.get("conversation_id")
-        human_prompt = state.get("message")
-        if assistant_response:
-            self.memory_client.add_memory_by_user_id(f"User: {human_prompt}\n Assistant: {assistant_response}", conversation_id)
-
-        return {"user_memory": ""}
+        assistant_response = state.get("result", [])
+        user_id = state.get("user_id")
+        human_prompt = state.get("task")
+        if assistant_response and user_id and human_prompt:
+            final_response_content = assistant_response[-1].content
+            self.memory_client.add_memory_by_user_id(
+                f"User: {human_prompt}\nAssistant: {final_response_content}",
+                user_id=user_id
+            )
+        return {}
 
     @traceable
     def prompt_rewrite(self, state: dict) -> dict:
@@ -425,41 +437,3 @@ class LlmApi:
         except Exception as e:
             print(e)
             raise e
-
-    @traceable
-    def search_rag_context(self, state: dict) -> dict:
-        """
-        Perform a local vector store db similarity search and reranking using bge,
-        if the reranked result scores are poorly evaluated, a web search will be involved in the next phase
-        Args:
-            state:
-
-        Returns:
-
-        """
-        reranked_score_count = 0
-        relevance_content = []
-        call_web_search = False
-        user_message = state["message"][0].content
-        vector_client = connect_to_milvus()
-        retrieved_docs = vector_client.search_similarity(query=user_message, k=10)
-        if retrieved_docs:
-            str_docs = []
-            for doc in retrieved_docs:
-                str_docs.append(doc.page_content)
-            reranked_docs = vector_client.rerank_document(query=user_message, documents=str_docs)
-
-            for result in reranked_docs:
-                if result.score > 0.5:
-                    reranked_score_count += 1
-                relevance_content.append(result.text)
-
-            if reranked_score_count <= 2:
-                call_web_search = True
-            return {
-                "rag_context": relevance_content,
-                "call_web_search": call_web_search
-            }
-
-        return {"rag_context": None,
-                "call_web_search": call_web_search}

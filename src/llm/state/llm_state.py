@@ -268,9 +268,12 @@ class LlmGraph:
         graph.add_node("get_plan", self.llm_api.get_plan)
         graph.add_node("tool_execution", self.llm_api.tool_execution)
         graph.add_node("solve", self.llm_api.solve)
+        graph.add_node("add_user_memory", self.llm_api.add_user_memory)
+        graph.add_node("add_conversation_memory", self.llm_api.add_conversation_memory)
 
         # node for joining result
         graph.add_node("join_result", self._join_results)
+        graph.add_node("join_memory", self._join_results)
 
         # Set entry point
         graph.set_entry_point("create_input_node")
@@ -285,7 +288,11 @@ class LlmGraph:
         graph.add_edge("get_plan", "tool_execution")
         graph.add_edge("tool_execution", "construct_prompt")
         graph.add_edge("construct_prompt", "solve")
-        graph.add_edge("solve", END)
+        graph.add_edge("solve", "add_user_memory")
+        graph.add_edge("solve", "add_conversation_memory")
+        graph.add_edge("add_user_memory", "join_memory")
+        graph.add_edge("add_conversation_memory", "join_memory")
+        graph.add_edge("join_memory", END)
 
         try:
             graph = graph.compile()
