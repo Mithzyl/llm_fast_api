@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from os import environ
 
 import tiktoken
@@ -104,7 +105,11 @@ class LlmApi:
         """
         user_message = state["task"]
         system_template = f"""
-                            You need to generate a title by using the input in 10 words as a sentence.
+                            You are an expert at creating concise and informative titles.
+                            Your task is to generate a title for the following user query in under 10 words.
+                            The title should be a single, clean sentence.
+                            Do not include any additional commentary, formatting, or thoughts.
+                            Only return the title.
                           """
         prompt_template = ChatPromptTemplate.from_messages([
             SystemMessage(system_template),
@@ -114,6 +119,7 @@ class LlmApi:
             title_generator = prompt_template| self.title_provider
             response = title_generator.invoke({})
             title = response.content
+            title = re.sub(r'<think>.*?</think>\n\n', '', title, flags=re.DOTALL).strip()
             return {'title': title}
         except Exception as e:
             raise e
@@ -275,11 +281,12 @@ class LlmApi:
         human_prompt = state.get("task")
         if assistant_response and conversation_id and human_prompt:
             final_response_content = assistant_response[-1].content
-            self.memory_client.add_memory_by_conversation_id(
+            conversation_memory = self.memory_client.add_memory_by_conversation_id(
                 f"User: {human_prompt}\nAssistant: {final_response_content}",
                 conversation_id=conversation_id
             )
-        return {}
+
+        return {"task": human_prompt}
 
     @traceable
     def search_user_memory(self, state: dict) -> dict:
@@ -294,15 +301,15 @@ class LlmApi:
     @traceable
     def add_user_memory(self, state: dict) -> dict:
         assistant_response = state.get("result", [])
-        user_id = state.get("user_id")
-        human_prompt = state.get("task")
+        user_id = state.get("user_id", "")
+        human_prompt = state.get("task", "")
         if assistant_response and user_id and human_prompt:
             final_response_content = assistant_response[-1].content
-            self.memory_client.add_memory_by_user_id(
+            user_memory = self.memory_client.add_memory_by_user_id(
                 f"User: {human_prompt}\nAssistant: {final_response_content}",
                 user_id=user_id
             )
-        return {}
+        return {"task": human_prompt}
 
     @traceable
     def prompt_rewrite(self, state: dict) -> dict:

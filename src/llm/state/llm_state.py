@@ -271,28 +271,19 @@ class LlmGraph:
         graph.add_node("add_user_memory", self.llm_api.add_user_memory)
         graph.add_node("add_conversation_memory", self.llm_api.add_conversation_memory)
 
-        # node for joining result
-        graph.add_node("join_result", self._join_results)
-        graph.add_node("join_memory", self._join_results)
-
         # Set entry point
         graph.set_entry_point("create_input_node")
 
-        # Add parallel execution paths
+        # Chain nodes sequentially to avoid parallel update errors
         graph.add_edge("create_input_node", "search_user_memory")
-        graph.add_edge("create_input_node", "search_conversation_memory")
-        graph.add_edge("search_user_memory", "join_result")
-        graph.add_edge("search_conversation_memory", "join_result")
-        # Continue with memory retrieval path
-        graph.add_edge("join_result", "get_plan")
+        graph.add_edge("search_user_memory", "search_conversation_memory")
+        graph.add_edge("search_conversation_memory", "get_plan")
         graph.add_edge("get_plan", "tool_execution")
         graph.add_edge("tool_execution", "construct_prompt")
         graph.add_edge("construct_prompt", "solve")
         graph.add_edge("solve", "add_user_memory")
-        graph.add_edge("solve", "add_conversation_memory")
-        graph.add_edge("add_user_memory", "join_memory")
-        graph.add_edge("add_conversation_memory", "join_memory")
-        graph.add_edge("join_memory", END)
+        graph.add_edge("add_user_memory", "add_conversation_memory")
+        graph.add_edge("add_conversation_memory", END)
 
         try:
             graph = graph.compile()
