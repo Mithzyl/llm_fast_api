@@ -292,11 +292,14 @@ class LlmService:
         """
         try:
             models = self.session.exec(select(LlmModel)).all()
+            models_dto = []
+            for model in models:
+                models_dto.append(model.to_dict())
 
         except Exception as e:
             raise e
 
-        return JSONResponse(status_code=200, content=models)
+        return JSONResponse(status_code=200, content=models_dto)
 
     async def create_stream_chat(self,
                                  llm_param: ChatCreateParam,
