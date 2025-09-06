@@ -31,7 +31,7 @@ async def create_chat(
 
 
 # Get model list
-@llm_router.get("/get_model")
+@llm_router.get("/models")
 async def get_models(llm_service: LlmService = Depends(get_llm_service)) -> JSONResponse:
     return llm_service.get_model_list()
 
