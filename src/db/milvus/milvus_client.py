@@ -17,8 +17,9 @@ class CustomMilvusClient(Milvus):
         super().__init__(embedding_function=self.embedding_model,
                          connection_args={"uri": uri},
                          collection_name=collection_name,
-                         drop_old=False)
-        self.auto_id = True
+                         drop_old=False,
+                         auto_id=True)
+
         self.reranker = BGERerankFunction(
                             model_name="BAAI/bge-reranker-base",  # Specify the model name. Defaults to `BAAI/bge-reranker-v2-m3`.
                             device="cpu" # Specify the device to use, e.g., 'cpu' or 'cuda:0'
@@ -48,6 +49,6 @@ def connect_to_milvus():
     #                           collection_name='IKEA')
 
     return CustomMilvusClient(uri=db_config['uri'],
-                              embedding_model=OllamaEmbeddings(model="nomic-embed-text:latest"),
-                              collection_name='IKEA')
+                              embedding_model=OllamaEmbeddings(model=db_config['model']),
+                              collection_name=db_config['collection_name'])
 

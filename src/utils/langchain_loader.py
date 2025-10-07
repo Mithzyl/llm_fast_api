@@ -18,7 +18,7 @@ class CustomFileLoader:
 
     def __init__(self):
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1536,
+            chunk_size=1024,
             chunk_overlap=100,
         )
         self.json_splitter = RecursiveJsonSplitter()

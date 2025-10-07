@@ -1,10 +1,14 @@
+import os
+import threading
 from contextlib import asynccontextmanager
 
 import yaml
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from frontend import event_handler
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from watchdog.observers import Observer
 
 from config.error_config import http_exception_handler, default_error_handler
 from llm.mcp.mcp_tool_manager import MCPToolManager
@@ -13,21 +17,37 @@ from routers import user_router, llm_router
 from db.db import create_db_and_tables, create_db
 from routers.memory_router import memory_router
 from utils.util import set_api_key_environ, find_root_dir
+from utils.watchdog import PersonalDocumentHandler
 
 mcp_server_manager = None
+
+# watchdog global config
+watchdog_observer = Observer()
+watchdog_watch_path = "./files/personal_docs"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global mcp_server_manager
+    global watchdog_observer
+    global watchdog_watch_path
     print("Application Startup")
     try:
         set_api_key_environ("./key.json")
         find_root_dir()
         # create_db_and_tables()
+
+        # watch dog
+        os.makedirs(watchdog_watch_path, exist_ok=True)
+        event_handler = PersonalDocumentHandler()
+        watchdog_observer.schedule(event_handler, watchdog_watch_path, recursive=True)
+        watch_dog_observer_thread = threading.Thread(target=watchdog_observer.start)
+        # set as guard thread
+        watch_dog_observer_thread.daemon = True
+        watchdog_observer.start()
+        print("Watchdog Started")
     except Exception as e:
-        db_name = "test.db"
-        print(f"DB setup error: {e}, creating {db_name}")
-        create_db(db_name)
+        print("Starting application failed, error: ", e)
+        raise e
 
     # Initialize LLM and Tooling Resources
     try:
@@ -56,6 +76,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(e)
     yield
+
+    if watchdog_observer.is_alive():
+        watchdog_observer.stop()
+        watchdog_observer.join()  # 等待线程结束
+    print("Watch dog shutting down。")
+
     print("Application Shutdown")
 
 app = FastAPI(lifespan=lifespan)
