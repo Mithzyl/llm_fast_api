@@ -12,8 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 将应用程序的其余代码复制到容器中
 COPY ./src /app/src
-COPY ./key.json /app/key.json
-COPY ./db.db /app/db.db
 
 # 让容器的 8000 端口可供外部访问
 EXPOSE 8000
