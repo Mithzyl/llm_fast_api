@@ -237,8 +237,13 @@ class LlmGraph:
                                       history_messages: List[str],
                                       user_id: str) -> dict:
         """
-        Build an integrated workflow that combines title generation, memory retrieval, and planning
-        flow: input -> (title generation | memory retrieval) -> planner subgraph -> add memory
+        Build an integrated workflow that combines title generation, memory retrieval, and planning.
+        The optimized flow ensures that memory is retrieved *before* planning, allowing the planner
+        to make more context-aware decisions.
+        
+        Optimized Flow: 
+        input -> search memories -> construct planner prompt -> get plan -> 
+        execute tools -> construct solver prompt -> solve -> add memories -> END
         
         Args:
             conversation_id: unique identifier for the conversation
@@ -249,38 +254,42 @@ class LlmGraph:
         Returns:
             the final state after workflow execution
         """
-        # Create planner subgraph
-        # planner_graph = self._create_planner_subgraph()
-        # self._draw_graph(planner_graph)
-
-        callback_handler = OpenAICallbackHandler()
-
         graph = StateGraph(State)
 
         # Add nodes
         graph.add_node("create_input_node", self.create_input_node)
         graph.add_node("search_user_memory", self.llm_api.search_user_memory)
         graph.add_node("search_conversation_memory", self.llm_api.search_conversation_memory)
-        graph.add_node("construct_prompt", self.llm_api.construct_prompt)
         
-        # Add planner subgraph as a node
-        # self.graph.add_node("planner_workflow", planner_graph)
+        # New node for building a context-aware prompt for the planner
+        graph.add_node("construct_prompt_for_planner", self.llm_api.construct_prompt_for_planner)
+        
         graph.add_node("get_plan", self.llm_api.get_plan)
         graph.add_node("tool_execution", self.llm_api.tool_execution)
+        
+        # Renamed node for clarity: this one builds the prompt for the final answer synthesis
+        graph.add_node("construct_prompt_for_solve", self.llm_api.construct_prompt)
+        
         graph.add_node("solve", self.llm_api.solve)
         graph.add_node("add_user_memory", self.llm_api.add_user_memory)
         graph.add_node("add_conversation_memory", self.llm_api.add_conversation_memory)
 
-        # Set entry point
+        # Set entry point and define the optimized workflow
         graph.set_entry_point("create_input_node")
-
-        # Chain nodes sequentially to avoid parallel update errors
         graph.add_edge("create_input_node", "search_user_memory")
         graph.add_edge("search_user_memory", "search_conversation_memory")
-        graph.add_edge("search_conversation_memory", "get_plan")
+        
+        # Inject memory context before planning
+        graph.add_edge("search_conversation_memory", "construct_prompt_for_planner")
+        graph.add_edge("construct_prompt_for_planner", "get_plan")
+        
         graph.add_edge("get_plan", "tool_execution")
-        graph.add_edge("tool_execution", "construct_prompt")
-        graph.add_edge("construct_prompt", "solve")
+        
+        # Construct the final prompt for the solver after tool execution
+        graph.add_edge("tool_execution", "construct_prompt_for_solve")
+        graph.add_edge("construct_prompt_for_solve", "solve")
+        
+        # Save the results to memory at the end
         graph.add_edge("solve", "add_user_memory")
         graph.add_edge("add_user_memory", "add_conversation_memory")
         graph.add_edge("add_conversation_memory", END)

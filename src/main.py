@@ -16,6 +16,7 @@ from middleware.jwt_middleware import JWTMiddleware
 from routers import user_router, llm_router
 from db.db import create_db_and_tables, create_db
 from routers.memory_router import memory_router
+from utils.scheduler import scheduler_manager
 from utils.util import set_api_key_environ, find_root_dir
 from utils.watchdog import PersonalDocumentHandler
 
@@ -34,17 +35,20 @@ async def lifespan(app: FastAPI):
     try:
         set_api_key_environ("./key.json")
         find_root_dir()
-        # create_db_and_tables()
+        create_db_and_tables()
 
-        # watch dog
+        # Start watchdog observer
         os.makedirs(watchdog_watch_path, exist_ok=True)
         event_handler = PersonalDocumentHandler()
         watchdog_observer.schedule(event_handler, watchdog_watch_path, recursive=True)
         watch_dog_observer_thread = threading.Thread(target=watchdog_observer.start)
-        # set as guard thread
         watch_dog_observer_thread.daemon = True
         watchdog_observer.start()
         print("Watchdog Started")
+
+        # Start APScheduler
+        scheduler_manager.start()
+
     except Exception as e:
         print("Starting application failed, error: ", e)
         raise e
@@ -77,10 +81,14 @@ async def lifespan(app: FastAPI):
         print(e)
     yield
 
+    # Shutdown watchdog
     if watchdog_observer.is_alive():
         watchdog_observer.stop()
-        watchdog_observer.join()  # 等待线程结束
-    print("Watch dog shutting down。")
+        watchdog_observer.join()
+    print("Watchdog shutting down.")
+
+    # Shutdown APScheduler
+    scheduler_manager.stop()
 
     print("Application Shutdown")
 

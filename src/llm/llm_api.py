@@ -142,6 +142,47 @@ class LlmApi:
             raise e
 
     @traceable
+    def construct_prompt_for_planner(self, state: dict) -> dict:
+        """
+        Constructs a task-oriented prompt for the planner, including memories.
+        """
+        user_memory = state.get("user_memory", [])
+        conversation_memory = state.get("conversation_memory", [])
+        task = state["task"]
+
+        # Build memory context string
+        memory_context = ""
+        if user_memory:
+            memory_context += "--- Relevant User Information ---\n"
+            # Assuming user_memory is a list of dicts from mem0
+            for mem in user_memory:
+                memory_context += f"- {mem.get('memory', '')}\n"
+            memory_context += "\n"
+
+        if conversation_memory:
+            memory_context += "--- Relevant Conversation History ---\n"
+            # Assuming conversation_memory is a list of dicts from mem0
+            for mem in conversation_memory:
+                memory_context += f"- {mem.get('memory', '')}\n"
+            memory_context += "\n"
+
+        # Create an enhanced task description for the planner
+        enhanced_task = f"""
+Please create a step-by-step plan to solve the following user task.
+
+**User Task:**
+{task}
+
+**Contextual Information (if available):**
+{memory_context if memory_context else "No additional context available."}
+
+Based on the task and the provided context, generate a plan.
+"""
+        
+        # Place the enhanced task back into the state for the get_plan node to use
+        return {"task": enhanced_task}
+
+    @traceable
     def chat(self, state: dict, model: Optional[str] = None) -> dict[str, dict]:
         """
         Args:
@@ -293,7 +334,7 @@ class LlmApi:
         user_memory = self.memory_client.search_memory_by_user_id(state["message"][0].content, state["user_id"])
         memory_content = ""
         for memory in user_memory:
-            memory_content += f"{memory['memory']}\n"
+            memory_content += f"time: {memory.get('updated_at')} content: {memory.get('memory')}\n"
         user_memory_message = HumanMessage(memory_content)
 
         return {"user_memory": user_memory_message}

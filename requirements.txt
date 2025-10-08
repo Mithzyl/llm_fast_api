@@ -28,3 +28,4 @@ mem0ai
 langchain-mcp-adapters
 duckduckgo-search
 watchdog
+apscheduler

@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage
 from llm.llm_factory import get_llm_provider
+from utils.notifier import feishu_notifier
 
 mcp = FastMCP("AgentTools")
 
@@ -98,6 +99,24 @@ def search(query: str, max_results: int = 5) -> str:
             return json.dumps(results)
     except Exception as e:
         return json.dumps({"error": f"An error occurred during search: {e}"})
+
+
+@mcp.tool()
+@traceable
+def send_feishu_message(message: str) -> str:
+    """
+    Sends a text message to a Feishu group using the configured notifier.
+    'message' is the content of the message to be sent.
+    Returns a JSON string indicating success or failure.
+    """
+    try:
+        success = feishu_notifier.send_text(message)
+        if success:
+            return json.dumps({"status": "success", "message": "Message sent successfully."})
+        else:
+            return json.dumps({"status": "error", "message": "Failed to send message."})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": f"An unexpected error occurred: {e}"})
 
 
 @mcp.tool()
