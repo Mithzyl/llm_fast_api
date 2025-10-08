@@ -6,7 +6,7 @@ services:
     container_name: fastapi_app_container
     volumes:
       - ./src:/app/src
-      - ./key.json:/app/key.json
+      - ./src/key.json:/app/key.json
       - ./src/model_url_config.json:/app/src/model_url_config.json
       - ./src/config.yaml:/app/src/config.yaml
       - ./db.db:/app/db.db
