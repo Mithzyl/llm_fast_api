@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     try:
         set_api_key_environ("./key.json")
         find_root_dir()
-        create_db_and_tables()
+        # create_db_and_tables()
 
         # Start watchdog observer
         os.makedirs(watchdog_watch_path, exist_ok=True)

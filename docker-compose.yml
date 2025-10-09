@@ -10,6 +10,7 @@ services:
       - ./src/model_url_config.json:/app/src/model_url_config.json
       - ./src/config.yaml:/app/src/config.yaml
       - ./db.db:/app/db.db
+      - ./src/files:/app/src/files
     ports:
       - "8000:8000"
     restart: unless-stopped
