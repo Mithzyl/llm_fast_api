@@ -13,12 +13,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 将应用程序的其余代码复制到容器中
 COPY ./src /app/src
 
+# 设置新的工作目录
+WORKDIR /app/src
+
 # 让容器的 8000 端口可供外部访问
 EXPOSE 8000
 
-# 定义环境变量
-ENV PYTHONPATH=/app
-
 # 容器启动时运行 uvicorn
 # --reload 标志用于在代码更改时自动重载服务
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
