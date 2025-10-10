@@ -2,19 +2,16 @@ import os
 import threading
 from contextlib import asynccontextmanager
 
-import yaml
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from frontend import event_handler
-from langchain_mcp_adapters.client import MultiServerMCPClient
 from watchdog.observers import Observer
 
 from config.error_config import http_exception_handler, default_error_handler
 from llm.mcp.mcp_tool_manager import MCPToolManager
-from middleware.jwt_middleware import JWTMiddleware
+
 from routers import user_router, llm_router
-from db.db import create_db_and_tables, create_db
+
 from routers.memory_router import memory_router
 from utils.scheduler import scheduler_manager
 from utils.util import set_api_key_environ, find_root_dir
