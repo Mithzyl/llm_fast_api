@@ -58,12 +58,7 @@ async def lifespan(app: FastAPI):
 
             "agent_tools": {
                 "command": "python",
-                "args": ["/Users/mith/Desktop/project/llm_fast_api/src/llm/mcp/mcp_tools.py"],
-                "transport": "stdio",
-            },
-            "llm_tools": {
-                "command": "python",
-                "args": ["/Users/mith/Desktop/project/llm_fast_api/src/llm/mcp/generation_tools.py"],
+                "args": ["/app/src/llm/mcp/mcp_tools.py"],
                 "transport": "stdio",
             }
             # "external_crm_tools": {

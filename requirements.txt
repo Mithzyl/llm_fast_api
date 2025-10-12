@@ -27,5 +27,8 @@ aioredis>=2.0.1
 mem0ai
 redis
 langchain-mcp-adapters
+langchain-milvus
+milvus_model
+torch
 duckduckgo-search
 watchdog

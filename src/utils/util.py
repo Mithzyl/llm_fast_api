@@ -45,9 +45,9 @@ def find_root_dir(start_path=None, marker='.git') -> None:
     raise FileNotFoundError(f"未找到包含 {marker} 的根目录")
 
 
-# 查找根目录
-root_dir = find_root_dir(marker='.git')
-print("根目录:", root_dir)
+# # 查找根目录
+# root_dir = find_root_dir(marker='.git')
+# print("根目录:", root_dir)
 
 
 def generate_md5_id() -> str:

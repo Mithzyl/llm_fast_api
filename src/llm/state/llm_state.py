@@ -3,7 +3,7 @@ import traceback
 from typing import Annotated, List, Dict, Optional
 
 from fastapi import Depends
-from frontend.dispatcher import callbacks
+# from frontend.dispatcher import callbacks
 from langchain_community.callbacks import OpenAICallbackHandler
 from langchain_core.runnables.graph import Node
 from langgraph.graph.graph import CompiledGraph
