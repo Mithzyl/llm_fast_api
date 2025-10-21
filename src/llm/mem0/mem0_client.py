@@ -11,24 +11,24 @@ mem0_config = {
         "provider": "milvus",
         "config": {
             "collection_name": "mem0",
-            "embedding_model_dims": "768",
+            "embedding_model_dims": "1536",
             "url": "http://localhost:19530",  # Use local vector database for demo purpose
         },
     },
     "llm": {
-        "provider": "openai",
+        "provider": "deepseek",
         "config": {
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "deepseek-chat",
             "temperature": 0.9,
             "max_tokens": 1500,
         },
     },
     "embedder": {
-        "provider": "ollama",
+        "provider": "openai",
         "config": {
-            "model": "nomic-embed-text:latest",
-            # Alternatively, you can use "snowflake-arctic-embed:latest"
-            "ollama_base_url": "localhost:11434",
+            "model": "text-embedding-v2",  # 千问的 embedding 模型名
+            "api_key": "your-qwen-api-key",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",  # 千问的兼容接口
         },
     },
 }

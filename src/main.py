@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
         print("Watchdog Started")
 
         # Start APScheduler
-        scheduler_manager.start()
+        # scheduler_manager.start()
 
     except Exception as e:
         print("Starting application failed, error: ", e)
