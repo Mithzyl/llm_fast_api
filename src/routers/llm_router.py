@@ -66,6 +66,16 @@ async def create_stream_chat(
                                                               )
 
 
-
-
-
+# Dify preprocessing endpoint
+@llm_router.post("/dify_preprocess")
+async def dify_preprocess(
+        llm_param: ChatCreateParam = Body(),
+        token: str = Depends(oauth2_scheme),
+        llm_service = Depends(get_llm_service),
+        llm_graph = Depends(get_llm_graph),
+        ) -> JSONResponse:
+    """
+    Dify preprocessing workflow that prepares input for Dify agents.
+    Returns executable JSON plans with context for Dify agent execution.
+    """
+    return await llm_service.dify_preprocess(llm_param, token, llm_graph)

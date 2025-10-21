@@ -485,3 +485,135 @@ Based on the task and the provided context, generate a plan.
         except Exception as e:
             print(e)
             raise e
+
+    @traceable
+    def summarize_context(self, state: dict) -> dict:
+        """
+        Summarize context by combining exact memories with historical insights
+        for Dify preprocessing workflow.
+        """
+        user_memory = state.get("user_memory", [])
+        conversation_memory = state.get("conversation_memory", [])
+        
+        # Build exact memories section
+        exact_memories = "Exact Memories:\n"
+        if user_memory:
+            for memory in user_memory:
+                if hasattr(memory, 'content'):
+                    exact_memories += f"- User Memory: {memory.content}\n"
+                elif isinstance(memory, dict) and 'memory' in memory:
+                    exact_memories += f"- User Memory: {memory['memory']}\n"
+        
+        if conversation_memory:
+            for memory in conversation_memory:
+                if hasattr(memory, 'content'):
+                    exact_memories += f"- Conversation Memory: {memory.content}\n"
+                elif isinstance(memory, dict) and 'memory' in memory:
+                    exact_memories += f"- Conversation Memory: {memory['memory']}\n"
+        
+        # Generate key insights using LLM
+        insights_prompt = f"""
+        Based on the following user and conversation memories, extract key historical insights 
+        and patterns that would be relevant for planning future interactions:
+
+        {exact_memories}
+
+        Provide a concise summary of key insights, patterns, and relevant context that should 
+        inform future planning. Focus on user preferences, recurring themes, and important context.
+
+        Key Historical Insights:
+        """
+        
+        prompt_template = ChatPromptTemplate.from_messages([("user", insights_prompt)])
+        insights_generator = prompt_template | self.provider
+        insights_response = insights_generator.invoke({})
+        
+        context_summary = f"{exact_memories}\nKey Historical Insights:\n{insights_response.content}"
+        
+        return {"context_summary": context_summary}
+
+    @traceable
+    def dify_planner(self, state: dict) -> dict:
+        """
+        Generate strategic markdown plans using the provided Dify planner prompt template.
+        """
+        task = state["task"]
+        context_summary = state.get("context_summary", "")
+        tool_prompt_strings = self._format_tools_for_prompt()
+        
+        planner_prompt = f"""
+        You are a strategic planner AI. Your role is to analyze a user's task, along with any provided memories and chat history, and create a high-level, step-by-step reasoning plan.
+        This plan will not be executed directly. Instead, it will be given to another AI assistant who will use it to reconstruct a comprehensive prompt to solve the task. Therefore, your output must be a clear, logical, and human-readable outline that explains the strategy for solving the problem.
+        For each step, define the goal and the type of information needed to accomplish it.
+        
+        Output Format:
+        Your response must be a step-by-step plan in markdown format. Do not use JSON. Follow this structure precisely:
+        Overall Strategy: [Provide a one-sentence summary of the overall approach.]
+        Step 1: [Title for Step 1]
+        Goal: [Describe the objective of this step. Why is it necessary?]
+        Information Needed: [Describe the specific information or evidence that must be gathered to complete this step. Mention which tools are suitable, e.g., "Use the search tool to find..."]
+        Step 2: [Title for Step 2]
+        Goal: [Describe the objective of this step.]
+        Information Needed: [Describe the information required and the suggested tool.]
+        (Add more steps as necessary)
+        Final Step: Synthesize the Answer
+        Goal: Combine all gathered information to formulate a complete and direct answer to the user's original task.
+        Information Needed: The outputs from all previous steps.
+
+        Available Tools:
+        {tool_prompt_strings}
+
+        Context:
+        {context_summary}
+
+        User's New Query:
+        {task}
+        """
+        
+        prompt_template = ChatPromptTemplate.from_messages([("user", planner_prompt)])
+        planner = prompt_template | self.provider
+        strategic_plan = planner.invoke({})
+        
+        return {"strategic_plan": strategic_plan.content}
+
+    @traceable
+    def dify_prompt_rewriter(self, state: dict) -> dict:
+        """
+        Convert strategic markdown plan to executable JSON format using the provided Dify prompt rewriter template.
+        """
+        strategic_plan = state["strategic_plan"]
+        task = state["task"]
+        tool_prompt_strings = self._format_tools_for_prompt()
+        
+        rewriter_prompt = f"""
+        You are an AI assistant that translates a high-level strategic plan into a structured, machine-readable JSON format for an execution agent.
+        You will be given the original user's query and a step-by-step strategic plan in Markdown. Your task is to convert this strategic plan into a JSON array of executable steps. Each JSON object must correspond to a step in the provided plan.
+
+        Tools Available for the Agent:
+        {tool_prompt_strings}
+
+        Required JSON Output Format:
+        Your response MUST be a valid JSON array. Do not add any text before or after the JSON, and do not wrap it in markdown. Each object in the array must follow this exact structure:
+        [
+            {{
+                "plan": "A detailed description of the plan for this specific step, derived from the strategy.",
+                "tool": "The specific tool selected from the available tool list to accomplish this step.",
+                "step": "The step number, formatted as 'Step#N', starting with 'Step#1'.",
+                "query": "The precise and complete input string to be passed to the selected tool."
+            }}
+        ]
+
+        Original User Query: {task}
+        Strategic Plan: {strategic_plan}
+        """
+        
+        prompt_template = ChatPromptTemplate.from_messages([("user", rewriter_prompt)])
+        rewriter = prompt_template | self.provider
+        executable_plan = rewriter.invoke({})
+        
+        # Clean up the response to ensure it's valid JSON
+        json_content = executable_plan.content.strip()
+        # Remove any markdown code blocks if present
+        json_content = json_content.replace('```json', '').replace('```', '').strip()
+        
+        return {"executable_plan": json_content}

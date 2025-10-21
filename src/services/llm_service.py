@@ -479,3 +479,63 @@ class LlmService:
         conversation = self.session.exec(select(llm_session)
                                          .where(llm_session.session_id == conversation_id)).first()
         return JSONResponse(status_code=200, content=conversation)
+
+    async def dify_preprocess(self,
+                             llm_param: ChatCreateParam,
+                             token: str,
+                             llm_graph: LlmGraph) -> JSONResponse:
+        """
+        Dify preprocessing workflow that prepares input for Dify agents.
+        This workflow generates executable JSON plans with context for Dify agent execution.
+        
+        Args:
+            llm_param: payload containing user message and conversation details
+            token: jwt token for user validation
+            llm_graph: injection of langgraph workflow
+
+        Returns:
+            JSON response containing executable plan, context summary, and strategic plan
+        """
+        payload = verify_token(token)
+        email = payload.get("email")
+        user = self.session.exec(
+            select(User).where(User.email == email)).first()
+
+        conversation_id = llm_param.get_conversation_id()
+        if not conversation_id:
+            conversation_id = generate_md5_id()
+
+        try:
+            # Get conversation history if available
+            history_conversations = None
+            if conversation_id:
+                history_conversations = self.session.exec(select(llm_message)
+                                        .filter(llm_message.session_id == conversation_id)
+                                        .order_by(llm_message.create_time)).all()
+
+            # Get user message
+            user_message = llm_param.get_message()
+
+            # Execute Dify preprocessing workflow
+            dify_result = await llm_graph.run_dify_preprocessing_workflow(
+                conversation_id=conversation_id,
+                user_message=user_message,
+                history_messages=history_conversations,
+                user_id=user.userid
+            )
+
+            # Return the preprocessing results for Dify consumption
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "executable_plan": dify_result.get("executable_plan", ""),
+                    "context_summary": dify_result.get("context_summary", ""),
+                    "strategic_plan": dify_result.get("strategic_plan", ""),
+                    "user_id": user.userid,
+                    "conversation_id": conversation_id
+                }
+            )
+
+        except Exception as e:
+            print(f"Error in Dify preprocessing: {e}")
+            raise HTTPException(status_code=500, detail=f"Dify preprocessing failed: {str(e)}")

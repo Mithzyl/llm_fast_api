@@ -62,6 +62,11 @@ class State(TypedDict):
 
     input_token: int
     output_token: int
+    
+    # Dify preprocessing specific fields
+    context_summary: str  # Combined exact memories + historical insights
+    strategic_plan: str   # Markdown plan from Dify planner
+    executable_plan: str  # JSON plan for Dify agents
 
 
 
@@ -394,6 +399,71 @@ class LlmGraph:
 
             return state['title']
         except Exception as e:
+            raise e
+
+    @traceable
+    async def run_dify_preprocessing_workflow(self, conversation_id: str,
+                                              user_message: str,
+                                              history_messages: List[str],
+                                              user_id: str) -> dict:
+        """
+        Build a Dify preprocessing workflow that prepares input for Dify agents.
+        Workflow: Memory Extraction → Context Summarization → Dify Planner → Dify Prompt Rewriter
+        
+        Args:
+            conversation_id: unique identifier for the conversation
+            user_message: the message input from the user
+            history_messages: a list of history messages from previous interactions
+            user_id: the id of the user
+
+        Returns:
+            the final state containing executable JSON plan for Dify agents
+        """
+        graph = StateGraph(State)
+
+        # Add nodes
+        graph.add_node("create_input_node", self.create_input_node)
+        graph.add_node("search_user_memory", self.llm_api.search_user_memory)
+        graph.add_node("search_conversation_memory", self.llm_api.search_conversation_memory)
+        graph.add_node("summarize_context", self.llm_api.summarize_context)
+        graph.add_node("dify_planner", self.llm_api.dify_planner)
+        graph.add_node("dify_prompt_rewriter", self.llm_api.dify_prompt_rewriter)
+
+        # Set entry point and define workflow
+        graph.set_entry_point("create_input_node")
+        graph.add_edge("create_input_node", "search_user_memory")
+        graph.add_edge("search_user_memory", "search_conversation_memory")
+        graph.add_edge("search_conversation_memory", "summarize_context")
+        graph.add_edge("summarize_context", "dify_planner")
+        graph.add_edge("dify_planner", "dify_prompt_rewriter")
+        graph.add_edge("dify_prompt_rewriter", END)
+
+        try:
+            compiled_graph = graph.compile()
+            
+            # Prepare initial state
+            state = {
+                "conversation_id": conversation_id,
+                "message": user_message,
+                "history_messages": history_messages,
+                "user_id": user_id,
+                "task": user_message,
+            }
+
+            # Execute the workflow
+            final_state = compiled_graph.invoke(state)
+            
+            # Return the Dify preprocessing results
+            return {
+                "executable_plan": final_state.get("executable_plan", ""),
+                "context_summary": final_state.get("context_summary", ""),
+                "strategic_plan": final_state.get("strategic_plan", ""),
+                "user_id": user_id,
+                "conversation_id": conversation_id
+            }
+
+        except Exception as e:
+            print(traceback.format_exc())
             raise e
 
 
